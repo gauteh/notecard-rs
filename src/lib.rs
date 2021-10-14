@@ -2,6 +2,8 @@
 //! API: https://dev.blues.io/reference/notecard-api/introduction/
 //!
 
+#![no_std]
+
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
@@ -159,5 +161,14 @@ impl<'a, T, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> FutureResponse<
     pub fn wait(self) -> Result<T, NoteError> {
         // TODO: deserialize
         unimplemented!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        let result = 2 + 2;
+        assert_eq!(result, 4);
     }
 }

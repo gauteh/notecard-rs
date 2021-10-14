@@ -1,0 +1,13 @@
+[package]
+name = "notecard"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+defmt = "0.2.3"
+embedded-hal = "0.2.6"
+heapless = { version = "0.7", features = [ "serde", "ufmt-impl", "defmt-impl" ] }
+serde = { version = "1", features = ["derive"], default-features = false }
+serde-json-core = "0.4.0"
