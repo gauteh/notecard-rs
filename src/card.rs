@@ -5,20 +5,23 @@ use defmt::{error, warn, info, debug, trace};
 use embedded_hal::blocking::i2c::{Write, Read, SevenBitAddress};
 use serde::Deserialize;
 
-use super::{Note, NoteError};
+use super::{Note, NoteError, FutureResponse};
 
-pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>>(&'a mut Note<IOM>);
+pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
+    note: &'a mut Note<IOM>
+}
 
-impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'_, IOM> {
+impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
     pub fn from(note: &mut Note<IOM>) -> Card<'_, IOM> {
-        Card(note)
+        Card { note }
     }
 
     /// Retrieves current date and time information. Upon power-up, the Notecard must complete a
     /// sync to Notehub in order to obtain time and location data. Before the time is obtained,
     /// this request will return `{"zone":"UTC,Unknown"}`.
-    pub fn time(&mut self) -> Result<TimeResponse, NoteError> {
-        unimplemented!()
+    pub fn time(self) -> Result<FutureResponse<'a, TimeResponse, IOM>, NoteError> {
+        self.note.request(b"{\"req\":\"card.time\"}\n")?;
+        Ok(FutureResponse::<'a, TimeResponse, IOM>::from(self.note))
     }
 }
 
