@@ -3,13 +3,14 @@
 //!
 
 #![no_std]
+#![feature(asm)]
 
 use core::marker::PhantomData;
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 pub mod card;
 
@@ -163,6 +164,16 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
         }
     }
 
+    fn take_response(&mut self) -> Result<&[u8], NoteError> {
+        if matches!(self.state, NoteState::ResponseReady) {
+            self.state = NoteState::Request;
+
+            Ok(&self.buf)
+        } else {
+            Err(NoteError::WrongState)
+        }
+    }
+
     /// Read any remaining data from the Notecarrier.
     fn consume_response(&mut self) -> Result<(), NoteError> {
         while self.data_query()? > 0 {
@@ -206,14 +217,6 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
                 buf.clear();
             }
 
-            // // Terminate command (XXX: include this in last transmission above, if space)
-            // buf[0] = 1;
-            // buf[1] = b'\n';
-
-            // self.i2c
-            //     .write(self.addr, &buf)
-            //     .map_err(|_| NoteError::I2cWriteError)?;
-
             self.state = NoteState::Poll(0);
 
             Ok(())
@@ -235,68 +238,92 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
 /// state. It is not safe to make new requests to the Notecard before the previous response has
 /// been read.
 #[must_use]
-pub struct FutureResponse<'a, T, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
+pub struct FutureResponse<'a, T: 'static, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     note: &'a mut Note<IOM>,
-    buf: heapless::Vec<u8, 1024>,
     _r: PhantomData<T>,
 }
 
-impl<'b, 'a, T: Deserialize<'b>, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>>
+impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>>
     FutureResponse<'a, T, IOM>
 {
     fn from(note: &'a mut Note<IOM>) -> FutureResponse<'a, T, IOM> {
         FutureResponse {
             note,
-            buf: heapless::Vec::new(),
             _r: PhantomData,
         }
     }
 
     /// Sleep for 25 ms waiting for more data to arrive.
-    fn sleep(&self) {}
+    fn sleep(&self) {
+        for _ in 0..1_000_000 {
+            unsafe {
+                asm!("nop")
+            }
+        }
+    }
 
     /// Reads remaining data and returns the deserialized object if it is ready.
-    pub fn poll(&'b mut self) -> Result<Option<T>, NoteError> {
+    pub fn poll(&mut self) -> Result<Option<T>, NoteError> {
         match self.note.state {
             NoteState::Poll(_) => {
                 // 1. Check for available data
                 let sz = self.note.data_query()?;
                 if sz > 0 {
                     debug!("response ready: {} bytes..", sz);
-                    return self.poll();
+
+                    self.poll()
                 } else {
                     // sleep and wait for ready.
-                    return Ok(None);
+                    Ok(None)
                 }
-            },
+            }
             NoteState::Response(_) => {
                 let avail = self.note.read()?;
                 if avail == 0 {
-                    return self.poll();
+                    self.poll()
                 } else {
                     // sleep and wait for more data.
-                    return Ok(None);
+                    Ok(None)
                 }
-            },
+            }
             NoteState::ResponseReady => {
                 debug!("response read, deserializing.");
-                let r = serde_json_core::from_slice::<T>(&self.note.buf)
-                    .map_err(|_| NoteError::DeserError)?
-                    .0;
-                return Ok(Some(r));
+                Ok(Some(
+                    serde_json_core::from_slice::<T>(self.note.take_response()?)
+                        .map_err(|_| NoteError::DeserError)?
+                        .0,
+                ))
             }
-            _ => { return Err(NoteError::WrongState); }
+            _ => {
+                Err(NoteError::WrongState)
+            }
         }
     }
 
-    pub fn wait_raw(self) -> &'a [u8] {
-        self.note.buf.as_slice()
+    /// Wait for response and return raw bytes. These may change on next response,
+    /// so this method is probably not staying as it is.
+    pub fn wait_raw(mut self) -> Result<&'a [u8], NoteError> {
+        loop {
+            match self.poll()? {
+                Some(_) => return Ok(self.note.take_response()?),
+                None => ()
+            }
+
+            self.sleep()
+        }
     }
 
-    // pub fn wait(self) -> Result<T, NoteError> {
-    //     // TODO: deserialize
-    //     unimplemented!()
-    // }
+    /// Wait for response and return deserialized object.
+    pub fn wait(mut self) -> Result<T, NoteError> {
+        loop {
+            match self.poll()? {
+                Some(r) => return Ok(r),
+                None => ()
+            }
+
+            self.sleep()
+        }
+    }
 }
 
 #[cfg(test)]
