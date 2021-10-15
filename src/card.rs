@@ -47,7 +47,10 @@ pub struct Status {
     status: heapless::String<10>,
     usb: bool,
     storage: usize,
-    time: u64,
+
+    time: Option<u64>,
+
+    #[serde(default)]
     connected: bool,
 }
 
@@ -87,6 +90,18 @@ mod tests {
     "storage":   8,
     "time":      1599684765,
     "connected": true
+    }"#,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    pub fn test_status_mising() {
+        serde_json_core::from_str::<Status>(
+            r#"{
+    "status":    "{normal}",
+    "usb":       true,
+    "storage":   8
     }"#,
         )
         .unwrap();

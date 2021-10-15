@@ -306,12 +306,14 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
                 debug!("response read, deserializing.");
                 let body = self.note.take_response()?;
 
-                if body.starts_with(br##"{err:"##) {
+                if body.starts_with(br##"{"err":"##) {
+                    trace!("response is error response, parsing error..");
                     Err(serde_json_core::from_slice::<NotecardError>(body)
                         .map_err(|_| NoteError::DeserError)?
                         .0
                         .into())
                 } else {
+                    trace!("response is regular, parsing..");
                     Ok(Some(
                         serde_json_core::from_slice::<T>(body)
                             .map_err(|_| NoteError::DeserError)?
