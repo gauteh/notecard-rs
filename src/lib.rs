@@ -24,7 +24,10 @@ pub enum NoteState {
     Poll(usize),
 
     /// Reading response, value is remaining bytes.
-    Response,
+    Response(usize),
+
+    /// Full response has been read into `buf`.
+    ResponseReady,
 }
 
 #[derive(Debug, defmt::Format, Clone, Copy)]
@@ -78,51 +81,59 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
     ///
     /// > This is allowed no matter the state.
     pub fn data_query(&mut self) -> Result<usize, NoteError> {
-        // Ask for reading, but with zero bytes allocated.
-        self.i2c
-            .write(self.addr, &[0, 0])
-            .map_err(|_| NoteError::I2cWriteError)?;
+        if !matches!(self.state, NoteState::Response(_)) {
+            // Ask for reading, but with zero bytes allocated.
+            self.i2c
+                .write(self.addr, &[0, 0])
+                .map_err(|_| NoteError::I2cWriteError)?;
 
-        let mut buf = [0u8; 2];
+            let mut buf = [0u8; 2];
 
-        // Read available bytes to read
-        self.i2c
-            .read(self.addr, &mut buf)
-            .map_err(|_| NoteError::I2cReadError)?;
+            // Read available bytes to read
+            self.i2c
+                .read(self.addr, &mut buf)
+                .map_err(|_| NoteError::I2cReadError)?;
 
-        let available = buf[0] as usize;
-        let sent = buf[1] as usize;
+            let available = buf[0] as usize;
+            let sent = buf[1] as usize;
 
-        if available > 0 {
-            self.state = NoteState::Response;
-        }
+            if available > 0 {
+                self.buf.clear();
+                self.state = NoteState::Response(available);
+            }
 
-        debug!("avail = {}, sent = {}", available, sent);
+            debug!("avail = {}, sent = {}", available, sent);
 
-        if sent > 0 {
-            error!(
-                "data query: bytes sent when querying available bytes: {}",
-                sent
-            );
-            Err(NoteError::RemainingData)
+            if sent > 0 {
+                error!(
+                    "data query: bytes sent when querying available bytes: {}",
+                    sent
+                );
+                Err(NoteError::RemainingData)
+            } else {
+                Ok(available)
+            }
         } else {
-            Ok(available)
+            error!("note: data_query called while reading response.");
+            Err(NoteError::RemainingData)
         }
     }
 
-    /// Try to read `buf.len()` bytes from Notecard. Returns bytes read in this chunk. There might
-    /// be remaining.
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, NoteError> {
-        if matches!(self.state, NoteState::Response) {
-            debug!("asking to read: {} bytes", buf.len());
-            // Ask for reading buf.len() bytes
-            self.i2c
-                .write(self.addr, &[0, buf.len() as u8])
-                .map_err(|_| NoteError::I2cWriteError)?;
+    /// Read untill empty.
+    fn read(&mut self) -> Result<usize, NoteError> {
+        if let NoteState::Response(avail) = self.state {
+            // Chunk to read + notecard header (2 bytes)
+            let mut bytes = heapless::Vec::<u8, 128>::new();
 
-            // We need a new buffer because the first two bytes are `available` and `sent`.
-            let mut bytes = heapless::Vec::<u8, 280>::new();
-            bytes.resize(buf.len() + 2, 0).unwrap();
+            let sz = (bytes.capacity() - 2).min(avail);
+            bytes.resize(sz + 2, 0).unwrap();
+
+            debug!("asking to read: {} of available {} bytes", sz, avail);
+
+            // Ask for reading `sz` bytes
+            self.i2c
+                .write(self.addr, &[0, sz as u8])
+                .map_err(|_| NoteError::I2cWriteError)?;
 
             // Read bytes
             self.i2c
@@ -132,18 +143,19 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
             let available = bytes[0] as usize;
             let sent = bytes[1] as usize;
 
+            self.buf.extend_from_slice(&bytes[2..]).unwrap(); // XXX: check enough space
+
             debug!("read: {:?} => {}", &bytes, unsafe {
                 core::str::from_utf8_unchecked(&bytes)
             });
 
             debug!("avail = {}, sent = {}", available, sent);
 
-            // if sent > buf.len() {
-            //     // more than we asked for.
-            //     return Err(NoteError::I2cReadError);
-            // }
-
-            buf.copy_from_slice(&bytes[2..]);
+            if available > 0 {
+                self.state = NoteState::Response(available);
+            } else {
+                self.state = NoteState::ResponseReady;
+            }
 
             Ok(available)
         } else {
@@ -245,44 +257,35 @@ impl<'b, 'a, T: Deserialize<'b>, IOM: Write<SevenBitAddress> + Read<SevenBitAddr
 
     /// Reads remaining data and returns the deserialized object if it is ready.
     pub fn poll(&'b mut self) -> Result<Option<T>, NoteError> {
-        // 1. Check for available data
-        let sz = self.note.data_query()?;
-
-        if sz > 0 {
-            debug!("response ready, reading {} bytes..", sz);
-
-            if self.buf.len() + sz > self.buf.capacity() {
-                // out of space in buffer
-                error!("no more space in buffer");
-                return Err(NoteError::RemainingData);
-            }
-
-            // extend buffer and write from last pos.
-            let cur = self.buf.len();
-            self.buf.resize(self.buf.len() + sz, 0).unwrap();
-
-            // 2. Read
-            let read = self.note.read(&mut self.buf[cur..(cur + sz)])?;
-
-            debug!("read: {} bytes.", read);
-
-            if read < sz {
-                warn!("got less than asked for, truncating buf.");
-                // We did not get as much as we asked for.
-                self.buf.truncate(cur + read);
-
-                Ok(None)
-            } else {
-                // 3. Deserialize when ready
-                debug!("deserializing..");
-
-                let r = serde_json_core::from_slice::<T>(&self.buf)
+        match self.note.state {
+            NoteState::Poll(_) => {
+                // 1. Check for available data
+                let sz = self.note.data_query()?;
+                if sz > 0 {
+                    debug!("response ready: {} bytes..", sz);
+                    return self.poll();
+                } else {
+                    // sleep and wait for ready.
+                    return Ok(None);
+                }
+            },
+            NoteState::Response(_) => {
+                let avail = self.note.read()?;
+                if avail == 0 {
+                    return self.poll();
+                } else {
+                    // sleep and wait for more data.
+                    return Ok(None);
+                }
+            },
+            NoteState::ResponseReady => {
+                debug!("response read, deserializing.");
+                let r = serde_json_core::from_slice::<T>(&self.note.buf)
                     .map_err(|_| NoteError::DeserError)?
                     .0;
-                Ok(Some(r))
+                return Ok(Some(r));
             }
-        } else {
-            Ok(None)
+            _ => { return Err(NoteError::WrongState); }
         }
     }
 
