@@ -62,4 +62,12 @@ pub struct TimeResponse {
 // }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_card_time_err() {
+        let r = br##"{"err":"time is not yet set","zone":"UTC,Unknown"}"##;
+        serde_json_core::from_slice::<TimeResponse>(r).unwrap();
+    }
+}

@@ -2,7 +2,7 @@
 //! API: https://dev.blues.io/reference/notecard-api/introduction/
 //!
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![feature(asm)]
 
 use core::marker::PhantomData;
