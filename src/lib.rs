@@ -10,7 +10,7 @@ use core::marker::PhantomData;
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Deserialize};
 
 pub mod card;
 
@@ -31,9 +31,10 @@ pub enum NoteState {
     ResponseReady,
 }
 
-#[derive(Debug, defmt::Format, Clone, Copy)]
+#[derive(Debug, defmt::Format, Clone)]
 pub enum NoteError {
     I2cWriteError,
+
     I2cReadError,
 
     DeserError,
@@ -42,6 +43,8 @@ pub enum NoteError {
 
     /// Method called when notecarrier is in invalid state.
     WrongState,
+
+    NotecardErr(heapless::String<20>),
 }
 
 /// The driver for the Notecard. Remember to intialize before making any requests.
@@ -231,6 +234,17 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
     }
 }
 
+#[derive(Deserialize, defmt::Format)]
+pub struct NotecardError {
+    err: heapless::String<20>,
+}
+
+impl From<NotecardError> for NoteError {
+    fn from(n: NotecardError) -> NoteError {
+        NoteError::NotecardErr(n.err)
+    }
+}
+
 /// A future response.
 ///
 /// It will not be possible to make any new requests before this has been consumed. If you drop
@@ -238,26 +252,22 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
 /// state. It is not safe to make new requests to the Notecard before the previous response has
 /// been read.
 #[must_use]
-pub struct FutureResponse<'a, T, E, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>>
-where
+pub struct FutureResponse<
+    'a,
     T: DeserializeOwned,
-    E: DeserializeOwned,
-{
+    IOM: Write<SevenBitAddress> + Read<SevenBitAddress>,
+> {
     note: &'a mut Note<IOM>,
     _r: PhantomData<T>,
-    _e: PhantomData<E>,
 }
 
-impl<'a, T, E, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> FutureResponse<'a, T, E, IOM>
-where
-    T: DeserializeOwned,
-    E: DeserializeOwned,
+impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>>
+    FutureResponse<'a, T, IOM>
 {
-    fn from(note: &'a mut Note<IOM>) -> FutureResponse<'a, T, E, IOM> {
+    fn from(note: &'a mut Note<IOM>) -> FutureResponse<'a, T, IOM> {
         FutureResponse {
             note,
             _r: PhantomData,
-            _e: PhantomData
         }
     }
 
@@ -294,11 +304,20 @@ where
             }
             NoteState::ResponseReady => {
                 debug!("response read, deserializing.");
-                Ok(Some(
-                    serde_json_core::from_slice::<T>(self.note.take_response()?)
+                let body = self.note.take_response()?;
+
+                if body.starts_with(br##"{err:"##) {
+                    Err(serde_json_core::from_slice::<NotecardError>(body)
                         .map_err(|_| NoteError::DeserError)?
-                        .0,
-                ))
+                        .0
+                        .into())
+                } else {
+                    Ok(Some(
+                        serde_json_core::from_slice::<T>(body)
+                            .map_err(|_| NoteError::DeserError)?
+                            .0,
+                    ))
+                }
             }
             _ => Err(NoteError::WrongState),
         }
