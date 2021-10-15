@@ -238,27 +238,33 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
 /// state. It is not safe to make new requests to the Notecard before the previous response has
 /// been read.
 #[must_use]
-pub struct FutureResponse<'a, T: 'static, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
+pub struct FutureResponse<'a, T, E, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>>
+where
+    T: DeserializeOwned,
+    E: DeserializeOwned,
+{
     note: &'a mut Note<IOM>,
     _r: PhantomData<T>,
+    _e: PhantomData<E>,
 }
 
-impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>>
-    FutureResponse<'a, T, IOM>
+impl<'a, T, E, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> FutureResponse<'a, T, E, IOM>
+where
+    T: DeserializeOwned,
+    E: DeserializeOwned,
 {
-    fn from(note: &'a mut Note<IOM>) -> FutureResponse<'a, T, IOM> {
+    fn from(note: &'a mut Note<IOM>) -> FutureResponse<'a, T, E, IOM> {
         FutureResponse {
             note,
             _r: PhantomData,
+            _e: PhantomData
         }
     }
 
     /// Sleep for 25 ms waiting for more data to arrive.
     fn sleep(&self) {
         for _ in 0..1_000_000 {
-            unsafe {
-                asm!("nop")
-            }
+            unsafe { asm!("nop") }
         }
     }
 
@@ -294,9 +300,7 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
                         .0,
                 ))
             }
-            _ => {
-                Err(NoteError::WrongState)
-            }
+            _ => Err(NoteError::WrongState),
         }
     }
 
@@ -306,7 +310,7 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
         loop {
             match self.poll()? {
                 Some(_) => return Ok(self.note.take_response()?),
-                None => ()
+                None => (),
             }
 
             self.sleep()
@@ -318,7 +322,7 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
         loop {
             match self.poll()? {
                 Some(r) => return Ok(r),
-                None => ()
+                None => (),
             }
 
             self.sleep()
@@ -328,9 +332,4 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
 }

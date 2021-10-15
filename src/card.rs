@@ -19,14 +19,14 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
     /// Retrieves current date and time information. Upon power-up, the Notecard must complete a
     /// sync to Notehub in order to obtain time and location data. Before the time is obtained,
     /// this request will return `{"zone":"UTC,Unknown"}`.
-    pub fn time(self) -> Result<FutureResponse<'a, TimeResponse, IOM>, NoteError> {
+    pub fn time(self) -> Result<FutureResponse<'a, Time, TimeError, IOM>, NoteError> {
         self.note.request(b"{\"req\":\"card.time\"}\n")?;
-        Ok(FutureResponse::<'a, TimeResponse, IOM>::from(self.note))
+        Ok(FutureResponse::<'a, Time, TimeError, IOM>::from(self.note))
     }
 }
 
 #[derive(Deserialize, defmt::Format)]
-pub struct TimeResponse {
+pub struct Time {
     time: u32,
     area: heapless::String<20>,
     zone: heapless::String<20>,
@@ -34,6 +34,12 @@ pub struct TimeResponse {
     lat: f32,
     lon: f32,
     country: heapless::String<10>
+}
+
+#[derive(Deserialize, defmt::Format)]
+pub struct TimeError {
+        err: heapless::String<20>,
+        zone: heapless::String<20>,
 }
 
 
@@ -68,6 +74,6 @@ mod tests {
     #[test]
     fn test_card_time_err() {
         let r = br##"{"err":"time is not yet set","zone":"UTC,Unknown"}"##;
-        serde_json_core::from_slice::<TimeResponse>(r).unwrap();
+        serde_json_core::from_slice::<Time>(r).unwrap();
     }
 }
