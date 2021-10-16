@@ -20,4 +20,4 @@ defmt-info = []
 defmt-warn = []
 defmt-error = []
 
-default = [ "defmt-trace" ]
+default = [ "defmt-default" ]

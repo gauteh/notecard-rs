@@ -33,25 +33,23 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
 
 #[derive(Deserialize, defmt::Format)]
 pub struct Time {
-    time: u32,
-    area: heapless::String<20>,
-    zone: heapless::String<20>,
-    minutes: i32,
-    lat: f32,
-    lon: f32,
-    country: heapless::String<10>,
+    pub time: u32,
+    pub area: heapless::String<20>,
+    pub zone: heapless::String<20>,
+    pub minutes: i32,
+    pub lat: f32,
+    pub lon: f32,
+    pub country: heapless::String<10>,
 }
 
 #[derive(Deserialize, defmt::Format)]
 pub struct Status {
-    status: heapless::String<10>,
-    usb: bool,
-    storage: usize,
-
-    time: Option<u64>,
-
+    pub status: heapless::String<10>,
+    pub usb: bool,
+    pub storage: usize,
+    pub time: Option<u64>,
     #[serde(default)]
-    connected: bool,
+    pub connected: bool,
 }
 
 #[cfg(test)]
@@ -62,16 +60,17 @@ mod tests {
     #[test]
     fn test_card_time_ok() {
         let r = br##"
-{
-  "time": 1599769214,
-  "area": "Beverly, MA",
-  "zone": "CDT,America/New York",
-  "minutes": -300,
-  "lat": 42.5776,
-  "lon": -70.87134,
-  "country": "US"
-}
-"##;
+        {
+          "time": 1599769214,
+          "area": "Beverly, MA",
+          "zone": "CDT,America/New York",
+          "minutes": -300,
+          "lat": 42.5776,
+          "lon": -70.87134,
+          "country": "US"
+        }
+        "##;
+
         serde_json_core::from_slice::<Time>(r).unwrap();
     }
 
@@ -84,13 +83,14 @@ mod tests {
     #[test]
     pub fn test_status_ok() {
         serde_json_core::from_str::<Status>(
-            r#"{
-    "status":    "{normal}",
-    "usb":       true,
-    "storage":   8,
-    "time":      1599684765,
-    "connected": true
-    }"#,
+            r#"
+          {
+            "status":    "{normal}",
+            "usb":       true,
+            "storage":   8,
+            "time":      1599684765,
+            "connected": true
+          }"#,
         )
         .unwrap();
     }
@@ -98,11 +98,12 @@ mod tests {
     #[test]
     pub fn test_status_mising() {
         serde_json_core::from_str::<Status>(
-            r#"{
-    "status":    "{normal}",
-    "usb":       true,
-    "storage":   8
-    }"#,
+            r#"
+          {
+            "status":    "{normal}",
+            "usb":       true,
+            "storage":   8
+          }"#,
         )
         .unwrap();
     }

@@ -10,9 +10,10 @@ use core::marker::PhantomData;
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub mod card;
+pub mod hub;
 
 #[derive(Debug, defmt::Format)]
 pub enum NoteState {
@@ -38,6 +39,7 @@ pub enum NoteError {
     I2cReadError,
 
     DeserError,
+    SerError,
 
     RemainingData,
 
@@ -45,6 +47,17 @@ pub enum NoteError {
     WrongState,
 
     NotecardErr(heapless::String<20>),
+}
+
+#[derive(Deserialize, defmt::Format)]
+pub struct NotecardError {
+    err: heapless::String<20>,
+}
+
+impl From<NotecardError> for NoteError {
+    fn from(n: NotecardError) -> NoteError {
+        NoteError::NotecardErr(n.err)
+    }
 }
 
 /// The driver for the Notecard. Remember to intialize before making any requests.
@@ -106,7 +119,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
                 self.state = NoteState::Response(available);
             }
 
-            debug!("avail = {}, sent = {}", available, sent);
+            trace!("avail = {}, sent = {}", available, sent);
 
             if sent > 0 {
                 error!(
@@ -149,11 +162,11 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
 
             self.buf.extend_from_slice(&bytes[2..]).unwrap(); // XXX: check enough space
 
-            debug!("read: {:?} => {}", &bytes, unsafe {
+            debug!("read:  {}", unsafe {
                 core::str::from_utf8_unchecked(&bytes)
             });
 
-            debug!("avail = {}, sent = {}", available, sent);
+            trace!("avail = {}, sent = {}", available, sent);
 
             if available > 0 {
                 self.state = NoteState::Response(available);
@@ -194,9 +207,9 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
         Ok(())
     }
 
-    /// Make a request. This returns a `[FutureResponse]` which must be used before making any new
-    /// requests. This method is usually called through the API methods like `[card]`.
-    pub(crate) fn request(&mut self, cmd: &[u8]) -> Result<(), NoteError> {
+    /// Make a raw request. The byte slice must end with `\n`. After making a request a
+    /// [FutureResponse] must be created and consumed.
+    pub(crate) fn request_raw(&mut self, cmd: &[u8]) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Request) {
             debug!("note: making request: {:}", unsafe {
                 core::str::from_utf8_unchecked(cmd)
@@ -228,20 +241,27 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
         }
     }
 
-    /// [card Requests](https://dev.blues.io/reference/notecard-api/card-requests/#card-location)
+    /// Make a request. After making a request a [FutureResponse] must be created and consumed
+    /// before making any new requests. This method is usually called through the API methods like
+    /// `[card]`.
+    pub(crate) fn request<T: Serialize>(&mut self, cmd: T) -> Result<(), NoteError> {
+        let mut cmd = serde_json_core::to_vec::<_, 1024>(&cmd).map_err(|_| NoteError::SerError)?;
+
+        // Add new-line, this separator tells the Notecard that the request is done.
+        cmd.push(b'\n').map_err(|_| NoteError::SerError)?;
+        let cmd = cmd.as_slice();
+
+        self.request_raw(&cmd)
+    }
+
+    /// [card Requests](https://dev.blues.io/reference/notecard-api/card-requests/)
     pub fn card(&mut self) -> card::Card<IOM> {
         card::Card::from(self)
     }
-}
 
-#[derive(Deserialize, defmt::Format)]
-pub struct NotecardError {
-    err: heapless::String<20>,
-}
-
-impl From<NotecardError> for NoteError {
-    fn from(n: NotecardError) -> NoteError {
-        NoteError::NotecardErr(n.err)
+    /// [hub Requests](https://dev.blues.io/reference/notecard-api/hub-requests/)
+    pub fn hub(&mut self) -> hub::Hub<IOM> {
+        hub::Hub::from(self)
     }
 }
 
@@ -271,7 +291,7 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
         }
     }
 
-    /// Sleep for 25 ms waiting for more data to arrive.
+    /// Sleep for ~25 ms waiting for more data to arrive.
     fn sleep(&self) {
         for _ in 0..1_000_000 {
             unsafe { asm!("nop") }
