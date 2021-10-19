@@ -1,5 +1,5 @@
-//! Protocol for transmitting: https://dev.blues.io/notecard/notecard-guides/serial-over-i2c-protocol/
-//! API: https://dev.blues.io/reference/notecard-api/introduction/
+//! Protocol for transmitting: <https://dev.blues.io/notecard/notecard-guides/serial-over-i2c-protocol/>
+//! API: <https://dev.blues.io/reference/notecard-api/introduction/>
 //!
 
 #![cfg_attr(not(test), no_std)]
@@ -17,6 +17,7 @@ pub mod hub;
 
 #[derive(Debug, defmt::Format)]
 pub enum NoteState {
+    /// Perform handshake with Notecard.
     Handshake,
 
     /// Ready to make request.
@@ -64,11 +65,13 @@ impl From<NotecardError> for NoteError {
     }
 }
 
-/// The driver for the Notecard. Remember to intialize before making any requests.
+/// The driver for the Notecard. Must be intialized before making any requests.
 pub struct Note<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     i2c: IOM,
     addr: u8,
     state: NoteState,
+
+    /// The receive buffer. Must be large enough to hold the largest response that will be received.
     buf: heapless::Vec<u8, 1024>,
 }
 
@@ -166,7 +169,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
 
             self.buf.extend_from_slice(&bytes[2..]).unwrap(); // XXX: check enough space
 
-            debug!("read:  {}", unsafe {
+            trace!("read:  {}", unsafe {
                 core::str::from_utf8_unchecked(&bytes)
             });
 
@@ -269,7 +272,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
                 _ => Err(NoteError::InvalidRequest),
             }?;
 
-            debug!("note: making request: {:}", unsafe {
+            trace!("note: making request: {:}", unsafe {
                 core::str::from_utf8_unchecked(cmd)
             });
 
