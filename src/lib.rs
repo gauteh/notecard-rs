@@ -39,7 +39,11 @@ pub enum NoteError {
     I2cReadError,
 
     DeserError,
+
     SerError,
+
+    // Request does end with '\n'.
+    InvalidRequest,
 
     RemainingData,
 
@@ -200,7 +204,10 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
 
     fn handshake(&mut self) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Handshake) {
-            self.consume_response()?;
+            // self.consume_response()?;
+            if self.data_query()? > 0 {
+                error!("note: handshake: remaining data in queue.");
+            }
 
             self.state = NoteState::Request;
         }
@@ -211,14 +218,20 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
     /// [FutureResponse] must be created and consumed.
     pub(crate) fn request_raw(&mut self, cmd: &[u8]) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Request) {
+            match cmd.last() {
+                Some(c) if *c == b'\n' => Ok(()),
+                _ => Err(NoteError::InvalidRequest)
+
+            }?;
+
             debug!("note: making request: {:}", unsafe {
                 core::str::from_utf8_unchecked(cmd)
             });
 
-            let mut buf = heapless::Vec::<u8, 255>::new();
-
-            // Send command in chunks of maximum 255 bytes
-            for c in cmd.chunks(254) {
+            // Send command in chunks of maximum 255 bytes.
+            // Using 254 bytes caused issues, buffer of 30 + 1 seems to work better.
+            let mut buf = heapless::Vec::<u8, 31>::new();
+            for c in cmd.chunks(buf.capacity() - 1) {
                 buf.push(c.len() as u8).unwrap();
                 buf.extend_from_slice(c).unwrap();
 
@@ -293,13 +306,14 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
 
     /// Sleep for ~25 ms waiting for more data to arrive.
     fn sleep(&self) {
-        for _ in 0..1_000_000 {
+        for _ in 0..10_000_000 {
             unsafe { asm!("nop") }
         }
     }
 
     /// Reads remaining data and returns the deserialized object if it is ready.
     pub fn poll(&mut self) -> Result<Option<T>, NoteError> {
+        trace!("note: poll: {:?}", self.note.state);
         match self.note.state {
             NoteState::Poll(_) => {
                 // 1. Check for available data

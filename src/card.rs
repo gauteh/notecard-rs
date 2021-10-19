@@ -3,7 +3,7 @@
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
 use super::{FutureResponse, Note, NoteError};
 
@@ -19,37 +19,44 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
     /// Retrieves current date and time information. Upon power-up, the Notecard must complete a
     /// sync to Notehub in order to obtain time and location data. Before the time is obtained,
     /// this request will return `{"zone":"UTC,Unknown"}`.
-    pub fn time(self) -> Result<FutureResponse<'a, Time, IOM>, NoteError> {
-        self.note.request(b"{\"req\":\"card.time\"}\n")?;
+    pub fn time(self) -> Result<FutureResponse<'a, res::Time, IOM>, NoteError> {
+        self.note.request_raw(b"{\"req\":\"card.time\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Returns general information about the Notecard's operating status.
-    pub fn status(self) -> Result<FutureResponse<'a, Status, IOM>, NoteError> {
-        self.note.request(b"{\"req\":\"card.status\"}\n")?;
+    pub fn status(self) -> Result<FutureResponse<'a, res::Status, IOM>, NoteError> {
+        self.note.request_raw(b"{\"req\":\"card.status\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 }
 
-#[derive(Deserialize, defmt::Format)]
-pub struct Time {
-    pub time: u32,
-    pub area: heapless::String<20>,
-    pub zone: heapless::String<20>,
-    pub minutes: i32,
-    pub lat: f32,
-    pub lon: f32,
-    pub country: heapless::String<10>,
+pub mod req {
 }
 
-#[derive(Deserialize, defmt::Format)]
-pub struct Status {
-    pub status: heapless::String<10>,
-    pub usb: bool,
-    pub storage: usize,
-    pub time: Option<u64>,
-    #[serde(default)]
-    pub connected: bool,
+pub mod res {
+    use super::*;
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct Time {
+        pub time: u32,
+        pub area: Option<heapless::String<20>>,
+        pub zone: Option<heapless::String<20>>,
+        pub minutes: Option<i32>,
+        pub lat: Option<f32>,
+        pub lon: Option<f32>,
+        pub country: Option<heapless::String<10>>,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct Status {
+        pub status: heapless::String<10>,
+        pub usb: bool,
+        pub storage: usize,
+        pub time: Option<u64>,
+        #[serde(default)]
+        pub connected: bool,
+    }
 }
 
 #[cfg(test)]
