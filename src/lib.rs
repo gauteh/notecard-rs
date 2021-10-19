@@ -85,6 +85,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
     /// Initialize the notecard driver by performing handshake with notecard.
     pub fn initialize(&mut self) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Handshake) {
+            info!("note: initializing.");
             self.handshake()
         } else {
             Err(NoteError::WrongState)
@@ -99,9 +100,8 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
     }
 
     /// Query the notecard for available bytes.
-    ///
-    /// > This is allowed no matter the state.
     pub fn data_query(&mut self) -> Result<usize, NoteError> {
+        trace!("note: data_query: {:?}", self.state);
         if !matches!(self.state, NoteState::Response(_)) {
             // Ask for reading, but with zero bytes allocated.
             self.i2c
@@ -136,7 +136,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
             }
         } else {
             error!("note: data_query called while reading response.");
-            Err(NoteError::RemainingData)
+            Err(NoteError::WrongState)
         }
     }
 
@@ -184,6 +184,14 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
         }
     }
 
+    /// Take the response from the buffer. Once this function has been called, the state is reset
+    /// and it is no longer safe to read the buffer.
+    ///
+    /// Safety:
+    ///
+    /// This function returns an immutable reference to the buffer, but new requests require a
+    /// mutable reference to `Note`. This is not granted before the immutable reference is
+    /// released.
     fn take_response(&mut self) -> Result<&[u8], NoteError> {
         if matches!(self.state, NoteState::ResponseReady) {
             self.state = NoteState::Request;
@@ -194,19 +202,57 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
         }
     }
 
+    /// Poll for data.
+    fn poll(&mut self) -> Result<Option<&[u8]>, NoteError> {
+        trace!("note: poll: {:?}", self.state);
+        match self.state {
+            NoteState::Poll(_) => {
+                // 1. Check for available data
+                let sz = self.data_query()?;
+                if sz > 0 {
+                    debug!("response ready: {} bytes..", sz);
+
+                    self.poll()
+                } else {
+                    // sleep and wait for ready.
+                    Ok(None)
+                }
+            }
+            NoteState::Response(_) => {
+                let avail = self.read()?;
+                if avail == 0 {
+                    self.poll()
+                } else {
+                    // sleep and wait for more data.
+                    Ok(None)
+                }
+            }
+            NoteState::ResponseReady => {
+                debug!("response read, deserializing.");
+                Ok(Some(self.take_response()?))
+            }
+            _ => Err(NoteError::WrongState),
+        }
+    }
+
     /// Read any remaining data from the Notecarrier.
     fn consume_response(&mut self) -> Result<(), NoteError> {
-        while self.data_query()? > 0 {
-            // Consume any left-over response.
+        warn!("note: trying to consume any left-over response.");
+        // Consume any left-over response.
+        while !matches!(self.poll()?, Some(_)) {
+            for _ in 0..10_000_000 {
+                unsafe { asm!("nop") }
+            }
         }
         Ok(())
     }
 
     fn handshake(&mut self) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Handshake) {
-            // self.consume_response()?;
+            debug!("note: handshake");
             if self.data_query()? > 0 {
                 error!("note: handshake: remaining data in queue.");
+                self.consume_response()?;
             }
 
             self.state = NoteState::Request;
@@ -220,8 +266,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
         if matches!(self.state, NoteState::Request) {
             match cmd.last() {
                 Some(c) if *c == b'\n' => Ok(()),
-                _ => Err(NoteError::InvalidRequest)
-
+                _ => Err(NoteError::InvalidRequest),
             }?;
 
             debug!("note: making request: {:}", unsafe {
@@ -313,49 +358,23 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
 
     /// Reads remaining data and returns the deserialized object if it is ready.
     pub fn poll(&mut self) -> Result<Option<T>, NoteError> {
-        trace!("note: poll: {:?}", self.note.state);
-        match self.note.state {
-            NoteState::Poll(_) => {
-                // 1. Check for available data
-                let sz = self.note.data_query()?;
-                if sz > 0 {
-                    debug!("response ready: {} bytes..", sz);
-
-                    self.poll()
-                } else {
-                    // sleep and wait for ready.
-                    Ok(None)
-                }
+        match self.note.poll()? {
+            Some(body) if body.starts_with(br##"{"err":"##) => {
+                trace!("response is error response, parsing error..");
+                Err(serde_json_core::from_slice::<NotecardError>(body)
+                    .map_err(|_| NoteError::DeserError)?
+                    .0
+                    .into())
             }
-            NoteState::Response(_) => {
-                let avail = self.note.read()?;
-                if avail == 0 {
-                    self.poll()
-                } else {
-                    // sleep and wait for more data.
-                    Ok(None)
-                }
-            }
-            NoteState::ResponseReady => {
-                debug!("response read, deserializing.");
-                let body = self.note.take_response()?;
-
-                if body.starts_with(br##"{"err":"##) {
-                    trace!("response is error response, parsing error..");
-                    Err(serde_json_core::from_slice::<NotecardError>(body)
+            Some(body) => {
+                trace!("response is regular, parsing..");
+                Ok(Some(
+                    serde_json_core::from_slice::<T>(body)
                         .map_err(|_| NoteError::DeserError)?
-                        .0
-                        .into())
-                } else {
-                    trace!("response is regular, parsing..");
-                    Ok(Some(
-                        serde_json_core::from_slice::<T>(body)
-                            .map_err(|_| NoteError::DeserError)?
-                            .0,
-                    ))
-                }
+                        .0,
+                ))
             }
-            _ => Err(NoteError::WrongState),
+            None => Ok(None),
         }
     }
 
@@ -386,5 +405,4 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}
