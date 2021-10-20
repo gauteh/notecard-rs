@@ -5,14 +5,14 @@ use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use serde::{Serialize, Deserialize};
 
-use super::{FutureResponse, Note, NoteError};
+use super::{FutureResponse, Notecard, NoteError};
 
 pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
-    note: &'a mut Note<IOM>,
+    note: &'a mut Notecard<IOM>,
 }
 
 impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
-    pub fn from(note: &mut Note<IOM>) -> Card<'_, IOM> {
+    pub fn from(note: &mut Notecard<IOM>) -> Card<'_, IOM> {
         Card { note }
     }
 
@@ -29,6 +29,12 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
         self.note.request_raw(b"{\"req\":\"card.status\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
+
+    /// Retrieves the current location of the Notecard.
+    pub fn location(self) -> Result<FutureResponse<'a, res::Location, IOM>, NoteError> {
+        self.note.request_raw(b"{\"req\":\"card.location\"}\n")?;
+        Ok(FutureResponse::from(self.note))
+    }
 }
 
 pub mod req {
@@ -36,6 +42,16 @@ pub mod req {
 
 pub mod res {
     use super::*;
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct Location {
+        status: heapless::String<80>,
+        mode: heapless::String<20>,
+        lat: Option<i32>,
+        lon: Option<i32>,
+        time: Option<u32>,
+        max: Option<u32>,
+    }
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Time {
@@ -78,7 +94,7 @@ mod tests {
         }
         "##;
 
-        serde_json_core::from_slice::<Time>(r).unwrap();
+        serde_json_core::from_slice::<res::Time>(r).unwrap();
     }
 
     #[test]
@@ -89,7 +105,7 @@ mod tests {
 
     #[test]
     pub fn test_status_ok() {
-        serde_json_core::from_str::<Status>(
+        serde_json_core::from_str::<res::Status>(
             r#"
           {
             "status":    "{normal}",
@@ -104,7 +120,7 @@ mod tests {
 
     #[test]
     pub fn test_status_mising() {
-        serde_json_core::from_str::<Status>(
+        serde_json_core::from_str::<res::Status>(
             r#"
           {
             "status":    "{normal}",

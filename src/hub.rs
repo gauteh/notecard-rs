@@ -5,14 +5,14 @@ use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use serde::{Deserialize, Serialize};
 
-use super::{FutureResponse, Note, NoteError};
+use super::{FutureResponse, Notecard, NoteError};
 
 pub struct Hub<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
-    note: &'a mut Note<IOM>,
+    note: &'a mut Notecard<IOM>,
 }
 
 impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
-    pub fn from(note: &mut Note<IOM>) -> Hub<'_, IOM> {
+    pub fn from(note: &mut Notecard<IOM>) -> Hub<'_, IOM> {
         Hub { note }
     }
 
@@ -127,6 +127,7 @@ mod tests {
     #[test]
     pub fn hub_set_some() {
         let hb = req::HubSet {
+            req: "hub.set",
             product: Some("testprod"),
             host: Some("testhost"),
             mode: Some(req::HubMode::Periodic),
@@ -135,7 +136,7 @@ mod tests {
 
         assert_eq!(
             &serde_json_core::to_string::<_, 1024>(&hb).unwrap(),
-            r#"{"product":"testprod","host":"testhost","mode":"periodic"}"#
+            r#"{"req":"hub.set","product":"testprod","host":"testhost","mode":"periodic"}"#
         );
     }
 }

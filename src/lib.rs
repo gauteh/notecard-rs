@@ -14,6 +14,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub mod card;
 pub mod hub;
+pub mod note;
 
 #[derive(Debug, defmt::Format)]
 pub enum NoteState {
@@ -66,7 +67,7 @@ impl From<NotecardError> for NoteError {
 }
 
 /// The driver for the Notecard. Must be intialized before making any requests.
-pub struct Note<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
+pub struct Notecard<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     i2c: IOM,
     addr: u8,
     state: NoteState,
@@ -75,9 +76,9 @@ pub struct Note<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     buf: heapless::Vec<u8, 1024>,
 }
 
-impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
-    pub fn new(i2c: IOM) -> Note<IOM> {
-        Note {
+impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
+    pub fn new(i2c: IOM) -> Notecard<IOM> {
+        Notecard {
             i2c,
             addr: 0x17,
             state: NoteState::Handshake,
@@ -320,6 +321,11 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<IOM> {
         card::Card::from(self)
     }
 
+    /// [note Requests](https://dev.blues.io/reference/notecard-api/note-requests/)
+    pub fn note(&mut self) -> note::Note<IOM> {
+        note::Note::from(self)
+    }
+
     /// [hub Requests](https://dev.blues.io/reference/notecard-api/hub-requests/)
     pub fn hub(&mut self) -> hub::Hub<IOM> {
         hub::Hub::from(self)
@@ -338,14 +344,14 @@ pub struct FutureResponse<
     T: DeserializeOwned,
     IOM: Write<SevenBitAddress> + Read<SevenBitAddress>,
 > {
-    note: &'a mut Note<IOM>,
+    note: &'a mut Notecard<IOM>,
     _r: PhantomData<T>,
 }
 
 impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>>
     FutureResponse<'a, T, IOM>
 {
-    fn from(note: &'a mut Note<IOM>) -> FutureResponse<'a, T, IOM> {
+    fn from(note: &'a mut Notecard<IOM>) -> FutureResponse<'a, T, IOM> {
         FutureResponse {
             note,
             _r: PhantomData,
