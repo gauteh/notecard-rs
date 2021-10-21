@@ -3,9 +3,9 @@
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use super::{FutureResponse, Notecard, NoteError};
+use super::{FutureResponse, NoteError, Notecard};
 
 pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     note: &'a mut Notecard<IOM>,
@@ -35,20 +35,141 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
         self.note.request_raw(b"{\"req\":\"card.location\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
+
+    /// Sets location-related configuration settings. Retrieves the current location mode when passed with no argument.
+    pub fn location_mode(
+        self,
+        mode: Option<&str>,
+        seconds: Option<u32>,
+        vseconds: Option<&str>,
+        delete: Option<bool>,
+        max: Option<u32>,
+        lat: Option<f32>,
+        lon: Option<f32>,
+        minutes: Option<u32>,
+    ) -> Result<FutureResponse<'a, res::LocationMode, IOM>, NoteError> {
+        self.note.request(req::LocationMode {
+            req: "card.location.mode",
+            mode: mode.map(heapless::String::from),
+            seconds,
+            vseconds: vseconds.map(heapless::String::from),
+            delete,
+            max,
+            lat,
+            lon,
+            minutes,
+        })?;
+        Ok(FutureResponse::from(self.note))
+    }
+
+    pub fn location_track(
+        self,
+        start: bool,
+        heartbeat: bool,
+        sync: bool,
+        hours: Option<u32>,
+        file: Option<&str>,
+    ) -> Result<FutureResponse<'a, res::LocationTrack, IOM>, NoteError> {
+        self.note.request(req::LocationTrack {
+            req: "card.location.track",
+            start: start.then(|| true),
+            stop: (!start).then(|| true),
+            heartbeat: heartbeat.then(|| true),
+            sync: sync.then(|| true),
+            hours,
+            file: file.map(heapless::String::from),
+        })?;
+
+        Ok(FutureResponse::from(self.note))
+    }
 }
 
 pub mod req {
+    use super::*;
+
+    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    pub struct LocationTrack {
+        pub req: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub start: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub heartbeat: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub sync: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub stop: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub hours: Option<u32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub file: Option<heapless::String<20>>,
+    }
+
+    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    pub struct LocationMode {
+        pub req: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub mode: Option<heapless::String<20>>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub seconds: Option<u32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub vseconds: Option<heapless::String<20>>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub delete: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub max: Option<u32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub lat: Option<f32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub lon: Option<f32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub minutes: Option<u32>,
+    }
 }
 
 pub mod res {
     use super::*;
 
     #[derive(Deserialize, defmt::Format)]
+    pub struct LocationTrack {
+        pub start: Option<bool>,
+        pub stop: Option<bool>,
+        pub heartbeat: Option<bool>,
+        pub seconds: Option<u32>,
+        pub hours: Option<u32>,
+        pub file: Option<heapless::String<20>>
+    }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct LocationMode {
+        pub mode: heapless::String<20>,
+        pub seconds: Option<u32>,
+        pub vseconds: Option<heapless::String<20>>,
+        pub max: Option<u32>,
+        pub lat: Option<f32>,
+        pub lon: Option<f32>,
+        pub minutes: Option<u32>,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
     pub struct Location {
         status: heapless::String<80>,
         mode: heapless::String<20>,
-        lat: Option<i32>,
-        lon: Option<i32>,
+        lat: Option<f32>,
+        lon: Option<f32>,
         time: Option<u32>,
         max: Option<u32>,
     }
@@ -129,5 +250,11 @@ mod tests {
           }"#,
         )
         .unwrap();
+    }
+
+    #[test]
+    fn test_partial_location_mode() {
+        serde_json_core::from_str::<res::LocationMode>(
+            r#"{"seconds":60,"mode":"periodic"}"#).unwrap();
     }
 }

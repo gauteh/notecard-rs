@@ -28,10 +28,11 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
         sync: bool,
         ) -> Result<FutureResponse<'a, res::Add, IOM>, NoteError> {
         self.note.request(req::Add::<T> {
+            req: "note.add",
             file: file.map(heapless::String::from),
             note: note.map(heapless::String::from),
             body,
-            payload: payload.map(heapless::String::from),
+            payload,
             sync: Some(sync),
             .. Default::default()
         })?;
@@ -43,19 +44,27 @@ mod req {
     use super::*;
 
     #[derive(Deserialize, Serialize, defmt::Format, Default)]
-    pub struct Add<T: Serialize + defmt::Format + Default> {
+    pub struct Add<'a, T: Serialize + defmt::Format + Default> {
+        pub req: &'static str,
+
         #[serde(skip_serializing_if = "Option::is_none")]
         pub file: Option<heapless::String<20>>,
+
         #[serde(skip_serializing_if = "Option::is_none")]
         pub note: Option<heapless::String<20>>,
+
         #[serde(skip_serializing_if = "Option::is_none")]
         pub body: Option<T>,
+
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub payload: Option<heapless::String<80>>, // maybe use a &'a str here?
+        pub payload: Option<&'a str>,
+
         #[serde(skip_serializing_if = "Option::is_none")]
         pub sync: Option<bool>,
+
         #[serde(skip_serializing_if = "Option::is_none")]
         pub key: Option<heapless::String<20>>,
+
         #[serde(skip_serializing_if = "Option::is_none")]
         pub verify: Option<bool>
     }
