@@ -76,6 +76,13 @@ pub struct Notecard<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     buf: heapless::Vec<u8, 1024>,
 }
 
+#[must_use = "The Notecard driver should be resumed and deconstructed if it is no longer needed"]
+pub struct SuspendState {
+    addr: u8,
+    state: NoteState,
+    buf: heapless::Vec<u8, 1024>,
+}
+
 impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     pub fn new(i2c: IOM) -> Notecard<IOM> {
         Notecard {
@@ -83,6 +90,30 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
             addr: 0x17,
             state: NoteState::Handshake,
             buf: heapless::Vec::new(),
+        }
+    }
+
+    /// Free the IOM device and return the driver state so that it can be quickly resumed. It is
+    /// not safe to change the state of the Notecard in the meantime, or create a second driver
+    /// without using this state.
+    pub fn suspend(self) -> (IOM, SuspendState) {
+        (
+            self.i2c,
+            SuspendState {
+                state: self.state,
+                buf: self.buf,
+                addr: self.addr,
+            },
+        )
+    }
+
+    /// Resume a previously [`suspend`]ed Notecard driver.
+    pub fn resume(i2c: IOM, state: SuspendState) -> Notecard<IOM> {
+        Notecard {
+            i2c,
+            addr: state.addr,
+            state: state.state,
+            buf: state.buf,
         }
     }
 
