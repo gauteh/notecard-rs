@@ -369,7 +369,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 /// this future before consuming the response the Notecard and driver will be left in inconsistent
 /// state. It is not safe to make new requests to the Notecard before the previous response has
 /// been read.
-#[must_use]
+#[must_use = "The response must be waited for and consumed, otherwise the notecard is left in an inconsistent state"]
 pub struct FutureResponse<
     'a,
     T: DeserializeOwned,
