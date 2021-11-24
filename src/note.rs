@@ -80,9 +80,3 @@ pub mod res {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-}
-

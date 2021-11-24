@@ -166,7 +166,7 @@ pub mod res {
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Location {
-        status: heapless::String<80>,
+        status: heapless::String<85>,
         mode: heapless::String<20>,
         lat: Option<f32>,
         lon: Option<f32>,
@@ -256,5 +256,11 @@ mod tests {
     fn test_partial_location_mode() {
         serde_json_core::from_str::<res::LocationMode>(
             r#"{"seconds":60,"mode":"periodic"}"#).unwrap();
+    }
+
+    #[test]
+    fn test_location_searching() {
+        serde_json_core::from_str::<res::Location>(
+            r#"{"status":"GPS search (111 sec, 32/33 dB SNR, 0/1 sats) {gps-active} {gps-signal} {gps-sats}","mode":"continuous"}"#).unwrap();
     }
 }
