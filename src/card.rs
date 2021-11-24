@@ -166,12 +166,12 @@ pub mod res {
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Location {
-        status: heapless::String<85>,
-        mode: heapless::String<20>,
-        lat: Option<f32>,
-        lon: Option<f32>,
-        time: Option<u32>,
-        max: Option<u32>,
+        pub status: heapless::String<85>,
+        pub mode: heapless::String<20>,
+        pub lat: Option<f32>,
+        pub lon: Option<f32>,
+        pub time: Option<u32>,
+        pub max: Option<u32>,
     }
 
     #[derive(Deserialize, defmt::Format)]
