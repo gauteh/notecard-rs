@@ -263,4 +263,10 @@ mod tests {
         serde_json_core::from_str::<res::Location>(
             r#"{"status":"GPS search (111 sec, 32/33 dB SNR, 0/1 sats) {gps-active} {gps-signal} {gps-sats}","mode":"continuous"}"#).unwrap();
     }
+
+    #[test]
+    fn test_location_mode_err() {
+        let r = br##"{"err":"seconds: field seconds: unmarshal: expected a int32 {io}"}"##;
+        serde_json_core::from_slice::<NotecardError>(r).unwrap();
+    }
 }

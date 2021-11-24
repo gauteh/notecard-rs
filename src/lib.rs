@@ -52,12 +52,12 @@ pub enum NoteError {
     /// Method called when notecarrier is in invalid state.
     WrongState,
 
-    NotecardErr(heapless::String<20>),
+    NotecardErr(heapless::String<120>),
 }
 
 #[derive(Deserialize, defmt::Format)]
 pub struct NotecardError {
-    err: heapless::String<20>,
+    err: heapless::String<120>,
 }
 
 impl From<NotecardError> for NoteError {
