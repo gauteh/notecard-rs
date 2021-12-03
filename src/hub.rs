@@ -107,11 +107,11 @@ pub mod res {
 
     #[derive(Deserialize, defmt::Format)]
     pub struct SyncStatus {
-        status: heapless::String<1024>,
-        time: Option<u32>,
-        sync: Option<bool>,
-        completed: Option<u32>,
-        requested: Option<u32>,
+        pub status: heapless::String<1024>,
+        pub time: Option<u32>,
+        pub sync: Option<bool>,
+        pub completed: Option<u32>,
+        pub requested: Option<u32>,
     }
 }
 

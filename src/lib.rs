@@ -402,7 +402,10 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
             Some(body) if body.starts_with(br##"{"err":"##) => {
                 trace!("response is error response, parsing error..");
                 Err(serde_json_core::from_slice::<NotecardError>(body)
-                    .map_err(|_| NoteError::DeserError)?
+                    .map_err(|_| {
+                        error!("failed to deserialize: {}", core::str::from_utf8(&body).unwrap_or("[invalid utf-8]"));
+                        NoteError::DeserError
+                    })?
                     .0
                     .into())
             }
@@ -410,7 +413,10 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
                 trace!("response is regular, parsing..");
                 Ok(Some(
                     serde_json_core::from_slice::<T>(body)
-                        .map_err(|_| NoteError::DeserError)?
+                        .map_err(|_| {
+                            error!("failed to deserialize: {}", core::str::from_utf8(&body).unwrap_or("[invalid utf-8]"));
+                            NoteError::DeserError
+                        })?
                         .0,
                 ))
             }
