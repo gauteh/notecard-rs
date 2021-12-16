@@ -20,7 +20,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
     /// request to the Notecard, if a Notefile name is specified, the file must either be a DB
     /// Notefile or outbound queue file (.qo/.qos). When sending this request to Notehub, the file
     /// must either be a DB Notefile or an inbound queue file (.qi/.qis).
-    pub fn add<T: Serialize + defmt::Format + Default>(
+    pub fn add<T: Serialize + Default>(
         self,
         file: Option<&str>,
         note: Option<&str>,
@@ -69,8 +69,8 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
 mod req {
     use super::*;
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
-    pub struct Add<'a, T: Serialize + defmt::Format + Default> {
+    #[derive(Deserialize, Serialize, Default)]
+    pub struct Add<'a, T: Serialize + Default> {
         pub req: &'static str,
 
         #[serde(skip_serializing_if = "Option::is_none")]
