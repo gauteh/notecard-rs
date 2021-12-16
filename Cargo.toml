@@ -12,5 +12,9 @@ heapless = { version = "0.7", features = [ "serde", "ufmt-impl", "defmt-impl" ] 
 serde = { version = "1", features = ["derive"], default-features = false }
 serde-json-core = "0.4.0"
 
+[dev-dependencies]
+base64 = { version = "0.13.0", default-features = false }
+bytemuck = "1.7.2"
+
 [features]
 default = [ ]

@@ -20,6 +20,8 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
     /// request to the Notecard, if a Notefile name is specified, the file must either be a DB
     /// Notefile or outbound queue file (.qo/.qos). When sending this request to Notehub, the file
     /// must either be a DB Notefile or an inbound queue file (.qi/.qis).
+    ///
+    /// The size of the payload seems to be 250 bytes maximum.
     pub fn add<T: Serialize + Default>(
         self,
         file: Option<&str>,
@@ -50,7 +52,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
     /// See
     /// https://dev.blues.io/notecard/notecard-walkthrough/low-bandwidth-design/#understanding-template-data-types
     /// for the format and values of the template.
-    pub fn template<T: Serialize + defmt::Format + Default>(
+    pub fn template<T: Serialize + Default>(
         self,
         file: Option<&str>,
         body: Option<T>,
@@ -95,8 +97,8 @@ mod req {
         pub verify: Option<bool>,
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
-    pub struct Template<T: Serialize + defmt::Format + Default> {
+    #[derive(Deserialize, Serialize, Default)]
+    pub struct Template<T: Serialize + Default> {
         pub req: &'static str,
 
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -115,12 +117,67 @@ pub mod res {
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Add {
-        total: u32,
+        total: Option<u32>,
         template: Option<bool>,
     }
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Template {
         bytes: u32,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::REQUEST_BUF;
+    use super::*;
+
+    #[test]
+    fn add_with_template() {
+        let r = br##"{"template":true}"##;
+        serde_json_core::from_slice::<res::Add>(r).unwrap();
+    }
+
+    #[test]
+    fn add_payload() {
+        pub const AXL_OUTN: usize = {3 * 1024} * 4 * 4 / 3 + 4;
+
+        #[derive(serde::Serialize, Default)]
+        pub struct AxlPacket {
+            pub timestamp: u32,
+
+            /// This is added to the payload of the note.
+            #[serde(skip)]
+            pub data: heapless::Vec<u16, { 3 * 1024 }>,
+        }
+
+
+        let p = AxlPacket {
+            timestamp: 0,
+            data: (0..3072).map(|v| v as _).collect::<heapless::Vec<_, { 3 * 1024 }>>()
+        };
+
+        let mut b64 = [0u8; AXL_OUTN];
+
+        let data = bytemuck::cast_slice(&p.data);
+        let sz = base64::encode_config_slice(data, base64::STANDARD, &mut b64);
+
+        let b64 = &b64[..sz];
+        let b64 = core::str::from_utf8(&b64).unwrap();
+
+
+        let add = req::Add {
+            req: "note.add",
+            file: Some("axl.qo".into()),
+            note: Some("?".into()),
+            body: Some(p),
+            payload: Some(b64),
+            sync: Some(false),
+            ..Default::default()
+        };
+
+        let cmd = serde_json_core::to_vec::<_, { REQUEST_BUF }>(&add).unwrap();
+
+        println!("cmd size: {}", cmd.len());
     }
 }

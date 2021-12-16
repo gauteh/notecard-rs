@@ -16,6 +16,8 @@ pub mod card;
 pub mod hub;
 pub mod note;
 
+pub const REQUEST_BUF: usize = 18 * 1024;
+
 #[derive(Debug, defmt::Format)]
 pub enum NoteState {
     /// Perform handshake with Notecard.
@@ -338,7 +340,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     /// before making any new requests. This method is usually called through the API methods like
     /// `[card]`.
     pub(crate) fn request<T: Serialize>(&mut self, cmd: T) -> Result<(), NoteError> {
-        let mut cmd = serde_json_core::to_vec::<_, 1024>(&cmd).map_err(|_| NoteError::SerError)?;
+        let mut cmd = serde_json_core::to_vec::<_, REQUEST_BUF>(&cmd).map_err(|_| NoteError::SerError)?;
 
         // Add new-line, this separator tells the Notecard that the request is done.
         cmd.push(b'\n').map_err(|_| NoteError::SerError)?;
