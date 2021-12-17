@@ -10,6 +10,7 @@ use core::marker::PhantomData;
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal::blocking::delay::DelayMs;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub mod card;
@@ -391,13 +392,6 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
         }
     }
 
-    /// Sleep for ~25 ms waiting for more data to arrive.
-    fn sleep(&self) {
-        for _ in 0..10_000_000 {
-            unsafe { asm!("nop") }
-        }
-    }
-
     /// Reads remaining data and returns the deserialized object if it is ready.
     pub fn poll(&mut self) -> Result<Option<T>, NoteError> {
         match self.note.poll()? {
@@ -428,26 +422,26 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
 
     /// Wait for response and return raw bytes. These may change on next response,
     /// so this method is probably not staying as it is.
-    pub fn wait_raw(mut self) -> Result<&'a [u8], NoteError> {
+    pub fn wait_raw(mut self, delay: &mut impl DelayMs<u16>) -> Result<&'a [u8], NoteError> {
         loop {
             match self.poll()? {
                 Some(_) => return Ok(self.note.take_response()?),
                 None => (),
             }
 
-            self.sleep()
+            delay.delay_ms(25);
         }
     }
 
     /// Wait for response and return deserialized object.
-    pub fn wait(mut self) -> Result<T, NoteError> {
+    pub fn wait(mut self, delay: &mut impl DelayMs<u16>) -> Result<T, NoteError> {
         loop {
             match self.poll()? {
                 Some(r) => return Ok(r),
                 None => (),
             }
 
-            self.sleep()
+            delay.delay_ms(25);
         }
     }
 }
