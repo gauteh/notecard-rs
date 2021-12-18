@@ -12,6 +12,7 @@ use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use embedded_hal::blocking::delay::DelayMs;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use core::arch::asm;
 
 pub mod card;
 pub mod hub;
