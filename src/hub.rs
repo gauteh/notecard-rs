@@ -40,6 +40,13 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
         host: Option<&str>,
         mode: Option<req::HubMode>,
         sn: Option<&str>,
+        outbound: Option<u32>,
+        duration: Option<u32>,
+        voutbound: Option<&str>,
+        inbound: Option<u32>,
+        vinbound: Option<&str>,
+        align: Option<bool>,
+        sync: Option<bool>,
     ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
         self.note.request(req::HubSet {
             req: "hub.set",
@@ -47,6 +54,13 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
             host,
             mode,
             sn,
+            outbound,
+            duration,
+            voutbound,
+            inbound,
+            vinbound,
+            align,
+            sync
         })?;
         Ok(FutureResponse::from(self.note))
     }
@@ -64,7 +78,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
     }
 }
 
-mod req {
+pub mod req {
     use super::*;
 
     #[derive(Deserialize, Serialize, defmt::Format)]
@@ -82,12 +96,36 @@ mod req {
         pub req: &'static str,
 
         pub product: Option<&'a str>,
+
         #[serde(skip_serializing_if = "Option::is_none")]
         pub host: Option<&'a str>,
+
         #[serde(skip_serializing_if = "Option::is_none")]
         pub mode: Option<HubMode>,
+
         #[serde(skip_serializing_if = "Option::is_none")]
         pub sn: Option<&'a str>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub outbound: Option<u32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub duration: Option<u32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub voutbound: Option<&'a str>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub inbound: Option<u32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub vinbound: Option<&'a str>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub align: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub sync: Option<bool>,
     }
 
     #[derive(Deserialize, Serialize, defmt::Format, Default)]
