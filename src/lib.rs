@@ -18,7 +18,9 @@ pub mod card;
 pub mod hub;
 pub mod note;
 
-pub const REQUEST_BUF: usize = 18 * 1024;
+/// The size of the shared request and receive buffer. Requests and responses may not serialize to
+/// any greater value than this.
+pub const BUF_SIZE: usize = 18 * 1024;
 
 #[derive(Debug, defmt::Format)]
 pub enum NoteState {
@@ -77,14 +79,14 @@ pub struct Notecard<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     state: NoteState,
 
     /// The receive buffer. Must be large enough to hold the largest response that will be received.
-    buf: heapless::Vec<u8, 1024>,
+    buf: heapless::Vec<u8, BUF_SIZE>,
 }
 
 #[must_use = "The Notecard driver should be resumed and deconstructed if it is no longer needed"]
 pub struct SuspendState {
     addr: u8,
     state: NoteState,
-    buf: heapless::Vec<u8, 1024>,
+    buf: heapless::Vec<u8, BUF_SIZE>,
 }
 
 impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
@@ -302,20 +304,28 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     /// Make a raw request. The byte slice must end with `\n`. After making a request a
     /// [FutureResponse] must be created and consumed.
     pub(crate) fn request_raw(&mut self, cmd: &[u8]) -> Result<(), NoteError> {
+        self.buf.resize(cmd.len(), 0).map_err(|_| NoteError::SerError)?;
+        let buf: &mut [u8] = self.buf.as_mut();
+        buf.copy_from_slice(&cmd);
+        self.send_request()
+    }
+
+    /// Sends request from buffer.
+    fn send_request(&mut self) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Request) {
-            match cmd.last() {
+            match self.buf.last() {
                 Some(c) if *c == b'\n' => Ok(()),
                 _ => Err(NoteError::InvalidRequest),
             }?;
 
             trace!("note: making request: {:}", unsafe {
-                core::str::from_utf8_unchecked(cmd)
+                core::str::from_utf8_unchecked(&self.buf)
             });
 
             // Send command in chunks of maximum 255 bytes.
             // Using 254 bytes caused issues, buffer of 30 + 1 seems to work better.
             let mut buf = heapless::Vec::<u8, 31>::new();
-            for c in cmd.chunks(buf.capacity() - 1) {
+            for c in self.buf.chunks(buf.capacity() - 1) {
                 buf.push(c.len() as u8).unwrap();
                 buf.extend_from_slice(c).unwrap();
 
@@ -342,13 +352,15 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     /// before making any new requests. This method is usually called through the API methods like
     /// `[card]`.
     pub(crate) fn request<T: Serialize>(&mut self, cmd: T) -> Result<(), NoteError> {
-        let mut cmd = serde_json_core::to_vec::<_, REQUEST_BUF>(&cmd).map_err(|_| NoteError::SerError)?;
+        self.buf.clear();
+        self.buf.resize(self.buf.capacity(), 0).unwrap(); // unsafe { set_len } ?
+
+        let sz = serde_json_core::to_slice(&cmd, &mut self.buf).map_err(|_| NoteError::SerError)?;
+        self.buf.truncate(sz);
 
         // Add new-line, this separator tells the Notecard that the request is done.
-        cmd.push(b'\n').map_err(|_| NoteError::SerError)?;
-        let cmd = cmd.as_slice();
-
-        self.request_raw(&cmd)
+        self.buf.push(b'\n').map_err(|_| NoteError::SerError)?;
+        self.send_request()
     }
 
     /// [card Requests](https://dev.blues.io/reference/notecard-api/card-requests/)

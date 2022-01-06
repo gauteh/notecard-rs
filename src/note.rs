@@ -129,7 +129,7 @@ pub mod res {
 
 #[cfg(test)]
 mod tests {
-    use crate::REQUEST_BUF;
+    use crate::BUF_SIZE;
     use super::*;
 
     #[test]
@@ -176,7 +176,7 @@ mod tests {
             ..Default::default()
         };
 
-        let cmd = serde_json_core::to_vec::<_, { REQUEST_BUF }>(&add).unwrap();
+        let cmd = serde_json_core::to_vec::<_, { BUF_SIZE }>(&add).unwrap();
 
         println!("cmd size: {}", cmd.len());
     }

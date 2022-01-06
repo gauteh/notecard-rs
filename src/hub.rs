@@ -145,7 +145,7 @@ pub mod res {
 
     #[derive(Deserialize, defmt::Format)]
     pub struct SyncStatus {
-        pub status: heapless::String<1024>,
+        pub status: Option<heapless::String<1024>>,
         pub time: Option<u32>,
         pub sync: Option<bool>,
         pub completed: Option<u32>,
