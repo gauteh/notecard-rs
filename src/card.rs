@@ -176,7 +176,7 @@ pub mod res {
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Time {
-        pub time: u32,
+        pub time: Option<u32>,
         pub area: Option<heapless::String<20>>,
         pub zone: Option<heapless::String<20>>,
         pub minutes: Option<i32>,
