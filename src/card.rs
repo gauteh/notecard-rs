@@ -30,6 +30,12 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
         Ok(FutureResponse::from(self.note))
     }
 
+    /// Performs a firmware restart of the Notecard.
+    pub fn restart(self) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+        self.note.request_raw(b"{\"req\":\"card.restart\"}\n")?;
+        Ok(FutureResponse::from(self.note))
+    }
+
     /// Retrieves the current location of the Notecard.
     pub fn location(self) -> Result<FutureResponse<'a, res::Location, IOM>, NoteError> {
         self.note.request_raw(b"{\"req\":\"card.location\"}\n")?;
@@ -142,6 +148,10 @@ pub mod req {
 
 pub mod res {
     use super::*;
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct Empty {
+    }
 
     #[derive(Deserialize, defmt::Format)]
     pub struct LocationTrack {
