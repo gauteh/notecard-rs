@@ -3,7 +3,6 @@
 //!
 
 #![cfg_attr(not(test), no_std)]
-#![feature(asm)]
 
 use core::marker::PhantomData;
 
