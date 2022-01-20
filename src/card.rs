@@ -198,6 +198,7 @@ pub mod res {
     #[derive(Deserialize, defmt::Format)]
     pub struct Status {
         pub status: heapless::String<10>,
+        #[serde(default)]
         pub usb: bool,
         pub storage: usize,
         pub time: Option<u64>,
