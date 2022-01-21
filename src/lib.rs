@@ -54,6 +54,8 @@ pub enum NoteError {
 
     RemainingData,
 
+    TimeOut,
+
     /// Method called when notecarrier is in invalid state.
     WrongState,
 
@@ -445,26 +447,38 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
     /// Wait for response and return raw bytes. These may change on next response,
     /// so this method is probably not staying as it is.
     pub fn wait_raw(mut self, delay: &mut impl DelayMs<u16>) -> Result<&'a [u8], NoteError> {
-        loop {
+        let mut waited = 0;
+
+        while waited < 2000 {
             match self.poll()? {
                 Some(_) => return Ok(self.note.take_response()?),
                 None => (),
             }
 
             delay.delay_ms(25);
+            waited -= 25;
         }
+
+        error!("response timed out.");
+        Err(NoteError::TimeOut)
     }
 
     /// Wait for response and return deserialized object.
     pub fn wait(mut self, delay: &mut impl DelayMs<u16>) -> Result<T, NoteError> {
-        loop {
+        let mut waited = 0;
+
+        while waited < 2000 {
             match self.poll()? {
                 Some(r) => return Ok(r),
                 None => (),
             }
 
             delay.delay_ms(25);
+            waited -= 25;
         }
+
+        error!("response timed out.");
+        Err(NoteError::TimeOut)
     }
 }
 
