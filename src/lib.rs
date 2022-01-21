@@ -6,12 +6,12 @@
 
 use core::marker::PhantomData;
 
+use core::arch::asm;
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use embedded_hal::blocking::delay::DelayMs;
+use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use core::arch::asm;
 
 pub mod card;
 pub mod hub;
@@ -275,13 +275,15 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
         }
     }
 
-    /// Read any remaining data from the Notecarrier.
-    fn consume_response(&mut self) -> Result<(), NoteError> {
+    /// Read any remaining data from the Notecarrier. This will cancel any waiting responses, and
+    /// waiting for a response after this call will dead-lock.
+    pub unsafe fn consume_response(&mut self) -> Result<(), NoteError> {
         warn!("note: trying to consume any left-over response.");
         // Consume any left-over response.
         while !matches!(self.poll()?, Some(_)) {
+            // XXX: Arbitrary delay. Need to pass &mut DelayMs to handshake, and init, etc.
             for _ in 0..10_000_000 {
-                unsafe { asm!("nop") }
+                asm!("nop")
             }
         }
         Ok(())
@@ -291,8 +293,8 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
         if matches!(self.state, NoteState::Handshake) {
             debug!("note: handshake");
             if self.data_query()? > 0 {
-                error!("note: handshake: remaining data in queue.");
-                self.consume_response()?;
+                error!("note: handshake: remaining data in queue, consuming..");
+                unsafe { self.consume_response()? };
             }
 
             self.state = NoteState::Request;
@@ -303,7 +305,9 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     /// Make a raw request. The byte slice must end with `\n`. After making a request a
     /// [FutureResponse] must be created and consumed.
     pub(crate) fn request_raw(&mut self, cmd: &[u8]) -> Result<(), NoteError> {
-        self.buf.resize(cmd.len(), 0).map_err(|_| NoteError::SerError)?;
+        self.buf
+            .resize(cmd.len(), 0)
+            .map_err(|_| NoteError::SerError)?;
         let buf: &mut [u8] = self.buf.as_mut();
         buf.copy_from_slice(&cmd);
         self.send_request()
@@ -411,7 +415,10 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
                 trace!("response is error response, parsing error..");
                 Err(serde_json_core::from_slice::<NotecardError>(body)
                     .map_err(|_| {
-                        error!("failed to deserialize: {}", core::str::from_utf8(&body).unwrap_or("[invalid utf-8]"));
+                        error!(
+                            "failed to deserialize: {}",
+                            core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
+                        );
                         NoteError::DeserError
                     })?
                     .0
@@ -422,7 +429,10 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
                 Ok(Some(
                     serde_json_core::from_slice::<T>(body)
                         .map_err(|_| {
-                            error!("failed to deserialize: {}", core::str::from_utf8(&body).unwrap_or("[invalid utf-8]"));
+                            error!(
+                                "failed to deserialize: {}",
+                                core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
+                            );
                             NoteError::DeserError
                         })?
                         .0,
