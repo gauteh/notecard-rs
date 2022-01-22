@@ -82,7 +82,6 @@ pub struct Notecard<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     buf: heapless::Vec<u8, BUF_SIZE>,
 }
 
-#[must_use = "The Notecard driver should be resumed and deconstructed if it is no longer needed"]
 pub struct SuspendState {
     addr: u8,
     state: NoteState,
