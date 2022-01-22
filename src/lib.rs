@@ -6,7 +6,6 @@
 
 use core::marker::PhantomData;
 
-use core::arch::asm;
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::delay::DelayMs;
@@ -125,10 +124,10 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     }
 
     /// Initialize the notecard driver by performing handshake with notecard.
-    pub fn initialize(&mut self) -> Result<(), NoteError> {
+    pub fn initialize(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Handshake) {
             info!("note: initializing.");
-            self.handshake()
+            self.handshake(delay)
         } else {
             Err(NoteError::WrongState)
         }
@@ -278,25 +277,33 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     }
 
     /// Read any remaining data from the Notecarrier. This will cancel any waiting responses, and
-    /// waiting for a response after this call will dead-lock.
-    pub unsafe fn consume_response(&mut self) -> Result<(), NoteError> {
+    /// waiting for a response after this call will time-out.
+    pub unsafe fn consume_response(
+        &mut self,
+        delay: &mut impl DelayMs<u16>,
+    ) -> Result<(), NoteError> {
         warn!("note: trying to consume any left-over response.");
-        // Consume any left-over response.
-        while !matches!(self.poll()?, Some(_)) {
-            // XXX: Arbitrary delay. Need to pass &mut DelayMs to handshake, and init, etc.
-            for _ in 0..10_000_000 {
-                asm!("nop")
+        let mut waited = 0;
+
+        while waited < 2000 {
+            if matches!(self.poll()?, Some(_)) {
+                return Ok(());
             }
+
+            delay.delay_ms(25);
+            waited += 25;
         }
-        Ok(())
+
+        error!("consume_response timed out.");
+        Err(NoteError::TimeOut)
     }
 
-    fn handshake(&mut self) -> Result<(), NoteError> {
+    fn handshake(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Handshake) {
             debug!("note: handshake");
             if self.data_query()? > 0 {
                 error!("note: handshake: remaining data in queue, consuming..");
-                unsafe { self.consume_response()? };
+                unsafe { self.consume_response(delay)? };
             }
 
             self.state = NoteState::Request;
@@ -456,7 +463,7 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
             }
 
             delay.delay_ms(25);
-            waited -= 25;
+            waited += 25;
         }
 
         error!("response timed out.");
@@ -474,7 +481,7 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
             }
 
             delay.delay_ms(25);
-            waited -= 25;
+            waited += 25;
         }
 
         error!("response timed out.");
