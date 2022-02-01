@@ -16,6 +16,12 @@ pub mod card;
 pub mod hub;
 pub mod note;
 
+/// Milliseconds to wait on response.
+const RESPONSE_TIMEOUT: u16 = 5000;
+
+/// Delay between polling for new response.
+const RESPONSE_DELAY: u16 = 25;
+
 /// The size of the shared request and receive buffer. Requests and responses may not serialize to
 /// any greater value than this.
 pub const BUF_SIZE: usize = 18 * 1024;
@@ -284,16 +290,16 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
         warn!("note: trying to consume any left-over response.");
         let mut waited = 0;
 
-        while waited < 2000 {
+        while waited < RESPONSE_TIMEOUT {
             if matches!(self.poll()?, Some(_)) {
                 return Ok(());
             }
 
-            delay.delay_ms(25);
-            waited += 25;
+            delay.delay_ms(RESPONSE_DELAY);
+            waited += RESPONSE_DELAY;
         }
 
-        error!("consume_response timed out.");
+        error!("response timed out (>= {}).", RESPONSE_TIMEOUT);
         Err(NoteError::TimeOut)
     }
 
@@ -455,17 +461,17 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
     pub fn wait_raw(mut self, delay: &mut impl DelayMs<u16>) -> Result<&'a [u8], NoteError> {
         let mut waited = 0;
 
-        while waited < 2000 {
+        while waited < RESPONSE_TIMEOUT {
             match self.poll()? {
                 Some(_) => return Ok(self.note.take_response()?),
                 None => (),
             }
 
-            delay.delay_ms(25);
-            waited += 25;
+            delay.delay_ms(RESPONSE_DELAY);
+            waited += RESPONSE_DELAY;
         }
 
-        error!("response timed out.");
+        error!("response timed out (>= {}).", RESPONSE_TIMEOUT);
         Err(NoteError::TimeOut)
     }
 
@@ -473,17 +479,17 @@ impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress
     pub fn wait(mut self, delay: &mut impl DelayMs<u16>) -> Result<T, NoteError> {
         let mut waited = 0;
 
-        while waited < 2000 {
+        while waited < RESPONSE_TIMEOUT {
             match self.poll()? {
                 Some(r) => return Ok(r),
                 None => (),
             }
 
-            delay.delay_ms(25);
-            waited += 25;
+            delay.delay_ms(RESPONSE_DELAY);
+            waited += RESPONSE_DELAY;
         }
 
-        error!("response timed out.");
+        error!("response timed out (>= {}).", RESPONSE_TIMEOUT);
         Err(NoteError::TimeOut)
     }
 }
