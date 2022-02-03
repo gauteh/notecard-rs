@@ -88,6 +88,11 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
 
         Ok(FutureResponse::from(self.note))
     }
+
+    pub fn wireless(self) -> Result<FutureResponse<'a, res::Wireless, IOM>, NoteError> {
+        self.note.request_raw(b"{\"req\":\"card.wireless\"}\n")?;
+        Ok(FutureResponse::from(self.note))
+    }
 }
 
 pub mod req {
@@ -205,12 +210,49 @@ pub mod res {
         #[serde(default)]
         pub connected: bool,
     }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct WirelessNet {
+        iccid: heapless::String<24>,
+        imsi:  heapless::String<24>,
+        imei:  heapless::String<24>,
+        modem:  heapless::String<35>,
+        band:  heapless::String<24>,
+        rat:  heapless::String<24>,
+        rssir:  i32,
+        rssi: i32,
+        #[serde(default)]
+        rsrp: i32,
+        #[serde(default)]
+        sinr: i32,
+        #[serde(default)]
+        rsrq: i32,
+        bars: i32,
+        mcc: i32,
+        mnc: i32,
+        lac: i32,
+        cid: i32,
+        updated: u32,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct Wireless {
+        pub status: heapless::String<24>,
+        pub count: u8,
+        pub net: WirelessNet,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::NotecardError;
+
+    #[test]
+    fn test_card_wireless() {
+        let r = br##"{"status":"{modem-on}","count":3,"net":{"iccid":"89011703278520607527","imsi":"310170852060752","imei":"864475044204278","modem":"BG95M3LAR02A03_01.006.01.006","band":"GSM 900","rat":"gsm","rssir":-77,"rssi":-77,"bars":3,"mcc":242,"mnc":1,"lac":11001,"cid":12313,"updated":1643923524}}"##;
+        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
+    }
 
     #[test]
     fn test_card_time_ok() {
