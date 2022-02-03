@@ -169,8 +169,8 @@ pub mod res {
         pub seconds: Option<u32>,
         pub vseconds: Option<heapless::String<20>>,
         pub max: Option<u32>,
-        pub lat: Option<f32>,
-        pub lon: Option<f32>,
+        pub lat: Option<f64>,
+        pub lon: Option<f64>,
         pub minutes: Option<u32>,
     }
 
@@ -178,8 +178,8 @@ pub mod res {
     pub struct Location {
         pub status: heapless::String<120>,
         pub mode: heapless::String<20>,
-        pub lat: Option<f32>,
-        pub lon: Option<f32>,
+        pub lat: Option<f64>,
+        pub lon: Option<f64>,
         pub time: Option<u32>,
         pub max: Option<u32>,
     }
@@ -190,8 +190,8 @@ pub mod res {
         pub area: Option<heapless::String<20>>,
         pub zone: Option<heapless::String<20>>,
         pub minutes: Option<i32>,
-        pub lat: Option<f32>,
-        pub lon: Option<f32>,
+        pub lat: Option<f64>,
+        pub lon: Option<f64>,
         pub country: Option<heapless::String<10>>,
     }
 
