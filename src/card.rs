@@ -217,29 +217,26 @@ pub mod res {
         imsi:  heapless::String<24>,
         imei:  heapless::String<24>,
         modem:  heapless::String<35>,
-        band:  heapless::String<24>,
-        rat:  heapless::String<24>,
-        rssir:  i32,
-        rssi: i32,
-        #[serde(default)]
-        rsrp: i32,
-        #[serde(default)]
-        sinr: i32,
-        #[serde(default)]
-        rsrq: i32,
-        bars: i32,
-        mcc: i32,
-        mnc: i32,
-        lac: i32,
-        cid: i32,
-        updated: u32,
+        band:  Option<heapless::String<24>>,
+        rat:  Option<heapless::String<24>>,
+        rssir:  Option<i32>,
+        rssi: Option<i32>,
+        rsrp: Option<i32>,
+        sinr: Option<i32>,
+        rsrq: Option<i32>,
+        bars: Option<i32>,
+        mcc: Option<i32>,
+        mnc: Option<i32>,
+        lac: Option<i32>,
+        cid: Option<i32>,
+        updated: Option<u32>,
     }
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Wireless {
         pub status: heapless::String<24>,
-        pub count: u8,
-        pub net: WirelessNet,
+        pub count: Option<u8>,
+        pub net: Option<WirelessNet>,
     }
 }
 
@@ -251,6 +248,9 @@ mod tests {
     #[test]
     fn test_card_wireless() {
         let r = br##"{"status":"{modem-on}","count":3,"net":{"iccid":"89011703278520607527","imsi":"310170852060752","imei":"864475044204278","modem":"BG95M3LAR02A03_01.006.01.006","band":"GSM 900","rat":"gsm","rssir":-77,"rssi":-77,"bars":3,"mcc":242,"mnc":1,"lac":11001,"cid":12313,"updated":1643923524}}"##;
+        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
+
+        let r = br##"{"status":"{cell-registration-wait}","net":{"iccid":"89011703278520606586","imsi":"310170852060658","imei":"864475044197092","modem":"BG95M3LAR02A03_01.006.01.006"}}"##;
         serde_json_core::from_slice::<res::Wireless>(r).unwrap();
     }
 
