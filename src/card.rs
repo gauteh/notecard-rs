@@ -155,8 +155,7 @@ pub mod res {
     use super::*;
 
     #[derive(Deserialize, defmt::Format)]
-    pub struct Empty {
-    }
+    pub struct Empty {}
 
     #[derive(Deserialize, defmt::Format)]
     pub struct LocationTrack {
@@ -165,7 +164,7 @@ pub mod res {
         pub heartbeat: Option<bool>,
         pub seconds: Option<u32>,
         pub hours: Option<u32>,
-        pub file: Option<heapless::String<20>>
+        pub file: Option<heapless::String<20>>,
     }
 
     #[derive(Deserialize, defmt::Format)]
@@ -213,13 +212,13 @@ pub mod res {
 
     #[derive(Deserialize, defmt::Format)]
     pub struct WirelessNet {
-        iccid: heapless::String<24>,
-        imsi:  heapless::String<24>,
-        imei:  heapless::String<24>,
-        modem:  heapless::String<35>,
-        band:  Option<heapless::String<24>>,
-        rat:  Option<heapless::String<24>>,
-        rssir:  Option<i32>,
+        iccid: Option<heapless::String<24>>,
+        imsi: Option<heapless::String<24>>,
+        imei: Option<heapless::String<24>>,
+        modem: Option<heapless::String<35>>,
+        band: Option<heapless::String<24>>,
+        rat: Option<heapless::String<24>>,
+        rssir: Option<i32>,
         rssi: Option<i32>,
         rsrp: Option<i32>,
         sinr: Option<i32>,
@@ -251,6 +250,9 @@ mod tests {
         serde_json_core::from_slice::<res::Wireless>(r).unwrap();
 
         let r = br##"{"status":"{cell-registration-wait}","net":{"iccid":"89011703278520606586","imsi":"310170852060658","imei":"864475044197092","modem":"BG95M3LAR02A03_01.006.01.006"}}"##;
+        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
+
+        let r = br##"{"status":"{modem-off}","net":{}}"##;
         serde_json_core::from_slice::<res::Wireless>(r).unwrap();
     }
 
@@ -307,8 +309,8 @@ mod tests {
 
     #[test]
     fn test_partial_location_mode() {
-        serde_json_core::from_str::<res::LocationMode>(
-            r#"{"seconds":60,"mode":"periodic"}"#).unwrap();
+        serde_json_core::from_str::<res::LocationMode>(r#"{"seconds":60,"mode":"periodic"}"#)
+            .unwrap();
     }
 
     #[test]
