@@ -283,7 +283,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
     /// Read any remaining data from the Notecarrier. This will cancel any waiting responses, and
     /// waiting for a response after this call will time-out.
-    pub unsafe fn consume_response(
+    unsafe fn consume_response(
         &mut self,
         delay: &mut impl DelayMs<u16>,
     ) -> Result<(), NoteError> {
@@ -301,6 +301,15 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
         error!("response timed out (>= {}).", RESPONSE_TIMEOUT);
         Err(NoteError::TimeOut)
+    }
+
+    /// Reset notecard driver and state. Any waiting responses will be invalidated
+    /// and time-out.
+    pub unsafe fn reset(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
+        warn!("resetting: consuming any left-over response and perform a new handshake.");
+
+        self.state = NoteState::Handshake;
+        self.handshake(delay)
     }
 
     fn handshake(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
