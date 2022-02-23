@@ -292,12 +292,15 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
         while waited < RESPONSE_TIMEOUT {
             if matches!(self.poll()?, Some(_)) {
+                self.buf.clear();
                 return Ok(());
             }
 
             delay.delay_ms(RESPONSE_DELAY);
             waited += RESPONSE_DELAY;
         }
+
+        self.buf.clear();
 
         error!("response timed out (>= {}).", RESPONSE_TIMEOUT);
         Err(NoteError::TimeOut)
