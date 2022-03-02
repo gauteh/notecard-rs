@@ -234,6 +234,7 @@ pub mod res {
     #[derive(Deserialize, defmt::Format)]
     pub struct Wireless {
         pub status: heapless::String<24>,
+        pub mode: Option<heapless::String<24>>,
         pub count: Option<u8>,
         pub net: Option<WirelessNet>,
     }
@@ -253,6 +254,9 @@ mod tests {
         serde_json_core::from_slice::<res::Wireless>(r).unwrap();
 
         let r = br##"{"status":"{modem-off}","net":{}}"##;
+        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
+
+        let r = br##"{"status":"{network-up}","mode":"auto","count":3,"net":{"iccid":"89011703278520578660","imsi":"310170852057866","imei":"867730051260788","modem":"BG95M3LAR02A03_01.006.01.006","band":"GSM 900","rat":"gsm","rssir":-77,"rssi":-78,"bars":3,"mcc":242,"mnc":1,"lac":11,"cid":12286,"updated":1646227929}}"##;
         serde_json_core::from_slice::<res::Wireless>(r).unwrap();
     }
 
