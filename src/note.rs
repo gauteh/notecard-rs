@@ -3,6 +3,7 @@
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal::blocking::delay::DelayMs;
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
@@ -24,13 +25,14 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
     /// The size of the payload seems to be 250 bytes maximum.
     pub fn add<T: Serialize + Default>(
         self,
+        delay: &mut impl DelayMs<u16>,
         file: Option<&str>,
         note: Option<&str>,
         body: Option<T>,
         payload: Option<&str>,
         sync: bool,
     ) -> Result<FutureResponse<'a, res::Add, IOM>, NoteError> {
-        self.note.request(req::Add::<T> {
+        self.note.request(delay, req::Add::<T> {
             req: "note.add",
             file: file.map(heapless::String::from),
             note: note.map(heapless::String::from),
@@ -54,11 +56,12 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
     /// for the format and values of the template.
     pub fn template<T: Serialize + Default>(
         self,
+        delay: &mut impl DelayMs<u16>,
         file: Option<&str>,
         body: Option<T>,
         length: Option<u32>,
     ) -> Result<FutureResponse<'a, res::Template, IOM>, NoteError> {
-        self.note.request(req::Template::<T> {
+        self.note.request(delay, req::Template::<T> {
             req: "note.template",
             file: file.map(heapless::String::from),
             body,

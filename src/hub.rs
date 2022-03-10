@@ -2,10 +2,11 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
+use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use serde::{Deserialize, Serialize};
 
-use super::{FutureResponse, Notecard, NoteError};
+use super::{FutureResponse, NoteError, Notecard};
 
 pub struct Hub<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     note: &'a mut Notecard<IOM>,
@@ -19,16 +20,20 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
     /// Add a "device health" log message to send to Notehub on the next sync.
     pub fn log(
         self,
+        delay: &mut impl DelayMs<u16>,
         text: &str,
         alert: bool,
         sync: bool,
     ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
-        self.note.request(req::HubLog {
-            req: "hub.log",
-            text,
-            alert,
-            sync,
-        })?;
+        self.note.request(
+            delay,
+            req::HubLog {
+                req: "hub.log",
+                text,
+                alert,
+                sync,
+            },
+        )?;
         Ok(FutureResponse::from(self.note))
     }
 
@@ -36,6 +41,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
     /// the primary method for controlling the Notecard's Notehub connection and sync behavior.
     pub fn set(
         self,
+        delay: &mut impl DelayMs<u16>,
         product: Option<&str>,
         host: Option<&str>,
         mode: Option<req::HubMode>,
@@ -48,32 +54,49 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
         align: Option<bool>,
         sync: Option<bool>,
     ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
-        self.note.request(req::HubSet {
-            req: "hub.set",
-            product,
-            host,
-            mode,
-            sn,
-            outbound,
-            duration,
-            voutbound,
-            inbound,
-            vinbound,
-            align,
-            sync
-        })?;
+        self.note.request(
+            delay,
+            req::HubSet {
+                req: "hub.set",
+                product,
+                host,
+                mode,
+                sn,
+                outbound,
+                duration,
+                voutbound,
+                inbound,
+                vinbound,
+                align,
+                sync,
+            },
+        )?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Manually initiates a sync with Notehub.
-    pub fn sync(self) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
-        self.note.request_raw(b"{\"req\":\"hub.sync\"}\n")?;
+    pub fn sync(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        allow: bool,
+    ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+        match allow {
+            false => self.note.request_raw(delay, b"{\"req\":\"hub.sync\"}\n"),
+            true => self
+                .note
+                .request_raw(delay, b"{\"req\":\"hub.sync\",\"allow\":\"true\"}\n"),
+        }?;
+
         Ok(FutureResponse::from(self.note))
     }
 
     /// Check on the status of a recently triggered or previous sync.
-    pub fn sync_status(self) -> Result<FutureResponse<'a, res::SyncStatus, IOM>, NoteError> {
-        self.note.request_raw(b"{\"req\":\"hub.sync.status\"}\n")?;
+    pub fn sync_status(
+        self,
+        delay: &mut impl DelayMs<u16>,
+    ) -> Result<FutureResponse<'a, res::SyncStatus, IOM>, NoteError> {
+        self.note
+            .request_raw(delay, b"{\"req\":\"hub.sync.status\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 }

@@ -283,10 +283,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
     /// Read any remaining data from the Notecarrier. This will cancel any waiting responses, and
     /// waiting for a response after this call will time-out.
-    unsafe fn consume_response(
-        &mut self,
-        delay: &mut impl DelayMs<u16>,
-    ) -> Result<(), NoteError> {
+    unsafe fn consume_response(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
         warn!("note: trying to consume any left-over response.");
         let mut waited = 0;
 
@@ -330,17 +327,25 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
     /// Make a raw request. The byte slice must end with `\n`. After making a request a
     /// [FutureResponse] must be created and consumed.
-    pub(crate) fn request_raw(&mut self, cmd: &[u8]) -> Result<(), NoteError> {
+    pub(crate) fn request_raw(
+        &mut self,
+        delay: &mut impl DelayMs<u16>,
+        cmd: &[u8],
+    ) -> Result<(), NoteError> {
         self.buf
             .resize(cmd.len(), 0)
             .map_err(|_| NoteError::SerError)?;
         let buf: &mut [u8] = self.buf.as_mut();
         buf.copy_from_slice(&cmd);
-        self.send_request()
+        self.send_request(delay)
     }
 
     /// Sends request from buffer.
-    fn send_request(&mut self) -> Result<(), NoteError> {
+    fn send_request(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
+        const CHUNK_DELAY: u16 = 20; // ms
+        const SEGMENT_DELAY: u16 = 20; // ms
+        const SEGMENT_LENGTH: usize = 250;
+
         if matches!(self.state, NoteState::Request) {
             match self.buf.last() {
                 Some(c) if *c == b'\n' => Ok(()),
@@ -354,19 +359,23 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
             // Send command in chunks of maximum 255 bytes.
             // Using 254 bytes caused issues, buffer of 30 + 1 seems to work better.
             let mut buf = heapless::Vec::<u8, 31>::new();
-            for c in self.buf.chunks(buf.capacity() - 1) {
-                buf.push(c.len() as u8).unwrap();
-                buf.extend_from_slice(c).unwrap();
+            for segment in self.buf.chunks(SEGMENT_LENGTH) {
+                for c in segment.chunks(buf.capacity() - 1) {
+                    buf.push(c.len() as u8).unwrap();
+                    buf.extend_from_slice(c).unwrap();
 
-                trace!("note: sending chunk: {:} => {:}", &buf, unsafe {
-                    core::str::from_utf8_unchecked(&buf)
-                });
+                    trace!("note: sending chunk: {:} => {:}", &buf, unsafe {
+                        core::str::from_utf8_unchecked(&buf)
+                    });
 
-                self.i2c
-                    .write(self.addr, &buf)
-                    .map_err(|_| NoteError::I2cWriteError)?;
+                    self.i2c
+                        .write(self.addr, &buf)
+                        .map_err(|_| NoteError::I2cWriteError)?;
 
-                buf.clear();
+                    buf.clear();
+                    delay.delay_ms(CHUNK_DELAY);
+                }
+                delay.delay_ms(SEGMENT_DELAY);
             }
 
             self.state = NoteState::Poll(0);
@@ -380,7 +389,11 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     /// Make a request. After making a request a [FutureResponse] must be created and consumed
     /// before making any new requests. This method is usually called through the API methods like
     /// `[card]`.
-    pub(crate) fn request<T: Serialize>(&mut self, cmd: T) -> Result<(), NoteError> {
+    pub(crate) fn request<T: Serialize>(
+        &mut self,
+        delay: &mut impl DelayMs<u16>,
+        cmd: T,
+    ) -> Result<(), NoteError> {
         self.buf.clear();
         self.buf.resize(self.buf.capacity(), 0).unwrap(); // unsafe { set_len } ?
 
@@ -389,7 +402,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
         // Add new-line, this separator tells the Notecard that the request is done.
         self.buf.push(b'\n').map_err(|_| NoteError::SerError)?;
-        self.send_request()
+        self.send_request(delay)
     }
 
     /// [card Requests](https://dev.blues.io/reference/notecard-api/card-requests/)

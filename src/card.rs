@@ -3,6 +3,7 @@
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal::blocking::delay::DelayMs;
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
@@ -19,32 +20,33 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
     /// Retrieves current date and time information. Upon power-up, the Notecard must complete a
     /// sync to Notehub in order to obtain time and location data. Before the time is obtained,
     /// this request will return `{"zone":"UTC,Unknown"}`.
-    pub fn time(self) -> Result<FutureResponse<'a, res::Time, IOM>, NoteError> {
-        self.note.request_raw(b"{\"req\":\"card.time\"}\n")?;
+    pub fn time(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Time, IOM>, NoteError> {
+        self.note.request_raw(delay, b"{\"req\":\"card.time\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Returns general information about the Notecard's operating status.
-    pub fn status(self) -> Result<FutureResponse<'a, res::Status, IOM>, NoteError> {
-        self.note.request_raw(b"{\"req\":\"card.status\"}\n")?;
+    pub fn status(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Status, IOM>, NoteError> {
+        self.note.request_raw(delay, b"{\"req\":\"card.status\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Performs a firmware restart of the Notecard.
-    pub fn restart(self) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
-        self.note.request_raw(b"{\"req\":\"card.restart\"}\n")?;
+    pub fn restart(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+        self.note.request_raw(delay, b"{\"req\":\"card.restart\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Retrieves the current location of the Notecard.
-    pub fn location(self) -> Result<FutureResponse<'a, res::Location, IOM>, NoteError> {
-        self.note.request_raw(b"{\"req\":\"card.location\"}\n")?;
+    pub fn location(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Location, IOM>, NoteError> {
+        self.note.request_raw(delay, b"{\"req\":\"card.location\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Sets location-related configuration settings. Retrieves the current location mode when passed with no argument.
     pub fn location_mode(
         self,
+        delay: &mut impl DelayMs<u16>,
         mode: Option<&str>,
         seconds: Option<u32>,
         vseconds: Option<&str>,
@@ -54,7 +56,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
         lon: Option<f32>,
         minutes: Option<u32>,
     ) -> Result<FutureResponse<'a, res::LocationMode, IOM>, NoteError> {
-        self.note.request(req::LocationMode {
+        self.note.request(delay, req::LocationMode {
             req: "card.location.mode",
             mode: mode.map(heapless::String::from),
             seconds,
@@ -70,13 +72,14 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
 
     pub fn location_track(
         self,
+        delay: &mut impl DelayMs<u16>,
         start: bool,
         heartbeat: bool,
         sync: bool,
         hours: Option<u32>,
         file: Option<&str>,
     ) -> Result<FutureResponse<'a, res::LocationTrack, IOM>, NoteError> {
-        self.note.request(req::LocationTrack {
+        self.note.request(delay, req::LocationTrack {
             req: "card.location.track",
             start: start.then(|| true),
             stop: (!start).then(|| true),
@@ -89,8 +92,8 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
         Ok(FutureResponse::from(self.note))
     }
 
-    pub fn wireless(self) -> Result<FutureResponse<'a, res::Wireless, IOM>, NoteError> {
-        self.note.request_raw(b"{\"req\":\"card.wireless\"}\n")?;
+    pub fn wireless(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Wireless, IOM>, NoteError> {
+        self.note.request_raw(delay, b"{\"req\":\"card.wireless\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 }
