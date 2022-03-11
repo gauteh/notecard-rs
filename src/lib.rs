@@ -367,8 +367,6 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
                 core::str::from_utf8_unchecked(&self.buf)
             });
 
-            // Send command in chunks of maximum 255 bytes.
-            // Using 254 bytes caused issues, buffer of 30 + 1 seems to work better.
             let mut buf = heapless::Vec::<u8, { CHUNK_LENGTH + 1 }>::new();
             for segment in self.buf.chunks(SEGMENT_LENGTH) {
                 for c in segment.chunks(buf.capacity() - 1) {

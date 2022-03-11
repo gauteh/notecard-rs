@@ -74,18 +74,17 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
         Ok(FutureResponse::from(self.note))
     }
 
-    /// Manually initiates a sync with Notehub.
+    /// Manually initiates a sync with Notehub. `allow` can be specified to `true` to
+    /// remove the notecard from any penalty boxes.
     pub fn sync(
         self,
         delay: &mut impl DelayMs<u16>,
         allow: bool,
     ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
-        match allow {
-            false => self.note.request_raw(delay, b"{\"req\":\"hub.sync\"}\n"),
-            true => self
-                .note
-                .request_raw(delay, b"{\"req\":\"hub.sync\",\"allow\":\"true\"}\n"),
-        }?;
+        self.note.request(delay, req::HubSync {
+            req: "hub.sync",
+            allow: if allow { Some(true) } else { None }
+        })?;
 
         Ok(FutureResponse::from(self.note))
     }
@@ -103,6 +102,14 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
 
 pub mod req {
     use super::*;
+
+    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    pub struct HubSync {
+        pub req: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub allow: Option<bool>,
+    }
 
     #[derive(Deserialize, Serialize, defmt::Format)]
     #[serde(rename_all = "lowercase")]
