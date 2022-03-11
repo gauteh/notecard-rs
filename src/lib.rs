@@ -342,9 +342,20 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
     /// Sends request from buffer.
     fn send_request(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
+        // This is presumably limited by the notecard firmware.
+        const CHUNK_LENGTH_MAX: usize = 127;
+        // This is a limit that was required on some Arduinos. Can probably be increased up to
+        // `CHUNK_LENGTH_MAX`. Should maybe be configurable.
+        const CHUNK_LENGTH_I: usize = 30;
+        const CHUNK_LENGTH: usize = if CHUNK_LENGTH_I < CHUNK_LENGTH_MAX { CHUNK_LENGTH_I } else { CHUNK_LENGTH_MAX };
+
+        // `note-c` uses `250` for `SEGMENT_LENGTH`. Round to closest divisible
+        // by CHUNK_LENGTH so that we don't end up with unnecessarily fragmented
+        // chunks.
+        const SEGMENT_LENGTH: usize = (250 / CHUNK_LENGTH) * CHUNK_LENGTH;
+
         const CHUNK_DELAY: u16 = 20; // ms
         const SEGMENT_DELAY: u16 = 20; // ms
-        const SEGMENT_LENGTH: usize = 250;
 
         if matches!(self.state, NoteState::Request) {
             match self.buf.last() {
@@ -358,7 +369,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
             // Send command in chunks of maximum 255 bytes.
             // Using 254 bytes caused issues, buffer of 30 + 1 seems to work better.
-            let mut buf = heapless::Vec::<u8, 31>::new();
+            let mut buf = heapless::Vec::<u8, { CHUNK_LENGTH + 1 }>::new();
             for segment in self.buf.chunks(SEGMENT_LENGTH) {
                 for c in segment.chunks(buf.capacity() - 1) {
                     buf.push(c.len() as u8).unwrap();
