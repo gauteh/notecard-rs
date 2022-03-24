@@ -355,7 +355,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
         const SEGMENT_LENGTH: usize = (250 / CHUNK_LENGTH) * CHUNK_LENGTH;
 
         const CHUNK_DELAY: u16 = 20; // ms
-        const SEGMENT_DELAY: u16 = 250; // ms
+        const SEGMENT_DELAY: u16 = 100; // ms
 
         if matches!(self.state, NoteState::Request) {
             match self.buf.last() {
