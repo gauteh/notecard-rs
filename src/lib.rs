@@ -363,7 +363,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
                 _ => Err(NoteError::InvalidRequest),
             }?;
 
-            trace!("note: making request: {:}", unsafe {
+            trace!("note: making request: {}", unsafe {
                 core::str::from_utf8_unchecked(&self.buf)
             });
 
@@ -373,7 +373,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
                     buf.push(c.len() as u8).unwrap();
                     buf.extend_from_slice(c).unwrap();
 
-                    trace!("note: sending chunk: {:} => {:}", &buf, unsafe {
+                    trace!("note: sending chunk: {} => {}", &buf, unsafe {
                         core::str::from_utf8_unchecked(&buf)
                     });
 
