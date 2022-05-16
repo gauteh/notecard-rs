@@ -351,11 +351,11 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
         // `note-c` uses `250` for `SEGMENT_LENGTH`. Round to closest divisible
         // by CHUNK_LENGTH so that we don't end up with unnecessarily fragmented
-        // chunks.
+        // chunks. https://github.com/blues/note-c/blob/master/n_lib.h#L40 .
         const SEGMENT_LENGTH: usize = (250 / CHUNK_LENGTH) * CHUNK_LENGTH;
 
-        const CHUNK_DELAY: u16 = 20; // ms
-        const SEGMENT_DELAY: u16 = 100; // ms
+        const CHUNK_DELAY: u16 = 20; // ms, https://github.com/blues/note-c/blob/master/n_lib.h#L52
+        const SEGMENT_DELAY: u16 = 100; // ms, https://github.com/blues/note-c/blob/master/n_lib.h#L46
 
         if matches!(self.state, NoteState::Request) {
             match self.buf.last() {
