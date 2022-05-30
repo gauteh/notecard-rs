@@ -2,9 +2,9 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use embedded_hal::blocking::delay::DelayMs;
-use serde::{Deserialize, Serialize};
+use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
 
@@ -32,15 +32,69 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
         payload: Option<&str>,
         sync: bool,
     ) -> Result<FutureResponse<'a, res::Add, IOM>, NoteError> {
-        self.note.request(delay, req::Add::<T> {
-            req: "note.add",
-            file: file.map(heapless::String::from),
-            note: note.map(heapless::String::from),
-            body,
-            payload,
-            sync: Some(sync),
-            ..Default::default()
-        })?;
+        self.note.request(
+            delay,
+            req::Add::<T> {
+                req: "note.add",
+                file: file.map(heapless::String::from),
+                note: note.map(heapless::String::from),
+                body,
+                payload,
+                sync: Some(sync),
+                ..Default::default()
+            },
+        )?;
+        Ok(FutureResponse::from(self.note))
+    }
+
+    /// Updates a Note in a DB Notefile by its ID, replacing the existing body and/or payload.
+    pub fn update<T: Serialize + Default>(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        file: &str,
+        note: &str,
+        body: Option<T>,
+        payload: Option<&str>,
+        verify: bool,
+    ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+        self.note.request(
+            delay,
+            req::Update::<T> {
+                req: "note.update",
+                file: heapless::String::from(file),
+                note: heapless::String::from(note),
+                body,
+                payload,
+                verify,
+            },
+        )?;
+        Ok(FutureResponse::from(self.note))
+    }
+
+    /// Retrieves a Note from a Notefile.
+    ///
+    /// * When sending this request to the Notecard, the file must either be a DB Notefile (.db or .dbx) or inbound queue file (.qi/.qis).
+    /// * When sending this request to Notehub, the file must be a DB Notefile (.db).
+    ///
+    /// .qo/.qos Notes must be read from the Notehub event table using the Notehub Event API.
+    pub fn get<T: DeserializeOwned + Serialize>(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        file: &str,
+        note: &str,
+        delete: bool,
+        deleted: bool,
+    ) -> Result<FutureResponse<'a, res::Get<T>, IOM>, NoteError> {
+        self.note.request(
+            delay,
+            req::Get {
+                req: "note.get",
+                file: heapless::String::from(file),
+                note: heapless::String::from(note),
+                delete,
+                deleted,
+            },
+        )?;
         Ok(FutureResponse::from(self.note))
     }
 
@@ -61,12 +115,15 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
         body: Option<T>,
         length: Option<u32>,
     ) -> Result<FutureResponse<'a, res::Template, IOM>, NoteError> {
-        self.note.request(delay, req::Template::<T> {
-            req: "note.template",
-            file: file.map(heapless::String::from),
-            body,
-            length,
-        })?;
+        self.note.request(
+            delay,
+            req::Template::<T> {
+                req: "note.template",
+                file: file.map(heapless::String::from),
+                body,
+                length,
+            },
+        )?;
         Ok(FutureResponse::from(self.note))
     }
 }
@@ -101,6 +158,33 @@ mod req {
     }
 
     #[derive(Deserialize, Serialize, Default)]
+    pub struct Update<'a, T: Serialize + Default> {
+        pub req: &'static str,
+
+        pub file: heapless::String<20>,
+        pub note: heapless::String<20>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub body: Option<T>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub payload: Option<&'a str>,
+
+        pub verify: bool,
+    }
+
+    #[derive(Deserialize, Serialize, Default)]
+    pub struct Get {
+        pub req: &'static str,
+
+        pub file: heapless::String<20>,
+        pub note: heapless::String<20>,
+
+        pub delete: bool,
+        pub deleted: bool,
+    }
+
+    #[derive(Deserialize, Serialize, Default)]
     pub struct Template<T: Serialize + Default> {
         pub req: &'static str,
 
@@ -119,6 +203,16 @@ pub mod res {
     use super::*;
 
     #[derive(Deserialize, defmt::Format)]
+    pub struct Empty {}
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct Get<T: Serialize> {
+        pub body: Option<T>,
+        pub payload: Option<heapless::String<1024>>,
+        pub time: u32,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
     pub struct Add {
         total: Option<u32>,
         template: Option<bool>,
@@ -132,8 +226,8 @@ pub mod res {
 
 #[cfg(test)]
 mod tests {
-    use crate::BUF_SIZE;
     use super::*;
+    use crate::BUF_SIZE;
 
     #[test]
     fn add_with_template() {
@@ -143,7 +237,7 @@ mod tests {
 
     #[test]
     fn add_payload() {
-        pub const AXL_OUTN: usize = {3 * 1024} * 4 * 4 / 3 + 4;
+        pub const AXL_OUTN: usize = { 3 * 1024 } * 4 * 4 / 3 + 4;
 
         #[derive(serde::Serialize, Default)]
         pub struct AxlPacket {
@@ -154,10 +248,11 @@ mod tests {
             pub data: heapless::Vec<u16, { 3 * 1024 }>,
         }
 
-
         let p = AxlPacket {
             timestamp: 0,
-            data: (0..3072).map(|v| v as _).collect::<heapless::Vec<_, { 3 * 1024 }>>()
+            data: (0..3072)
+                .map(|v| v as _)
+                .collect::<heapless::Vec<_, { 3 * 1024 }>>(),
         };
 
         let mut b64 = [0u8; AXL_OUTN];
@@ -167,7 +262,6 @@ mod tests {
 
         let b64 = &b64[..sz];
         let b64 = core::str::from_utf8(&b64).unwrap();
-
 
         let add = req::Add {
             req: "note.add",
