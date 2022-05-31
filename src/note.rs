@@ -98,6 +98,26 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
         Ok(FutureResponse::from(self.note))
     }
 
+    /// Deletes Notefiles from a DB Notefile by its Note ID. To delete Notes from a .qi Notefile, use note.get or note.changes with delete:true.
+    pub fn delete(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        file: &str,
+        note: &str,
+    ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+        self.note.request(
+            delay,
+            req::Delete {
+                req: "note.delete",
+                file: heapless::String::from(file),
+                note: heapless::String::from(note),
+                verify: false,
+            },
+        )?;
+
+        Ok(FutureResponse::from(self.note))
+    }
+
     /// Using the note.template request command with any .qo/.qos Notefile, developers can provide
     /// the Notecard with a schema of sorts to apply to future Notes added to the Notefile. This
     /// template acts as a hint to the Notecard that allows it to internally store data as
@@ -170,6 +190,15 @@ mod req {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub payload: Option<&'a str>,
 
+        pub verify: bool,
+    }
+
+    #[derive(Deserialize, Serialize, Default)]
+    pub struct Delete {
+        pub req: &'static str,
+
+        pub file: heapless::String<20>,
+        pub note: heapless::String<20>,
         pub verify: bool,
     }
 
