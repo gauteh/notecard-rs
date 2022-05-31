@@ -205,11 +205,18 @@ pub mod res {
     #[derive(Deserialize, defmt::Format)]
     pub struct Empty {}
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Debug, Deserialize, defmt::Format)]
     pub struct Get<T: Serialize> {
+        pub note: heapless::String<32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
         pub body: Option<T>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
         pub payload: Option<heapless::String<1024>>,
-        pub time: u32,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub time: Option<u32>,
     }
 
     #[derive(Deserialize, defmt::Format)]
@@ -233,6 +240,26 @@ mod tests {
     fn add_with_template() {
         let r = br##"{"template":true}"##;
         serde_json_core::from_slice::<res::Add>(r).unwrap();
+    }
+
+    #[test]
+    fn get_note() {
+        #[derive(serde::Serialize, serde::Deserialize, Debug, defmt::Format)]
+        pub struct StorageIdInfo {
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub last_id: Option<u32>,
+
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub request_start: Option<u32>,
+
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub request_end: Option<u32>,
+        }
+
+        let r = br##"{"note":"storage-info","body":{"last_id":19999}}"##;
+        let si = serde_json_core::from_slice::<res::Get<StorageIdInfo>>(r).unwrap();
+
+        println!("{:?}", si);
     }
 
     #[test]
