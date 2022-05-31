@@ -96,6 +96,12 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
         self.note.request_raw(delay, b"{\"req\":\"card.wireless\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
+
+    /// Returns firmware version information for the Notecard.
+    pub fn version(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Version, IOM>, NoteError> {
+        self.note.request_raw(delay, b"{\"req\":\"card.version\"}\n")?;
+        Ok(FutureResponse::from(self.note))
+    }
 }
 
 pub mod req {
@@ -241,12 +247,58 @@ pub mod res {
         pub count: Option<u8>,
         pub net: Option<WirelessNet>,
     }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct VersionInner {
+        pub org: heapless::String<24>,
+        pub product: heapless::String<24>,
+        pub version: heapless::String<24>,
+        pub ver_major: u8,
+        pub ver_minor: u8,
+        pub ver_patch: u8,
+        pub ver_build: u16,
+        pub built: heapless::String<24>,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct Version {
+        pub body: VersionInner,
+        pub version: heapless::String<24>,
+        pub device: heapless::String<24>,
+        pub name: heapless::String<24>,
+        pub board: heapless::String<24>,
+        pub sku: heapless::String<24>,
+        pub api: u16,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::NotecardError;
+
+    #[test]
+    fn test_version() {
+        let r = br##"{
+  "body": {
+    "org":       "Blues Wireless",
+    "product":   "Notecard",
+    "version":   "notecard-1.5.0",
+    "ver_major": 1,
+    "ver_minor": 5,
+    "ver_patch": 0,
+    "ver_build": 11236,
+    "built":     "Sep 2 2020 08:45:10"
+  },
+  "version": "notecard-1.5.0.11236",
+  "device":  "dev:000000000000000",
+  "name":    "Blues Wireless Notecard",
+  "board":   "1.11",
+  "sku":     "NOTE-WBNA500",
+  "api":     1
+}"##;
+        serde_json_core::from_slice::<res::Version>(r).unwrap();
+    }
 
     #[test]
     fn test_card_wireless() {
