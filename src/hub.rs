@@ -8,12 +8,12 @@ use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
 
-pub struct Hub<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
-    note: &'a mut Notecard<IOM>,
+pub struct Hub<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+    note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
-    pub fn from(note: &mut Notecard<IOM>) -> Hub<'_, IOM> {
+impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Hub<'a, IOM, BS> {
+    pub fn from(note: &mut Notecard<IOM, BS>) -> Hub<'_, IOM, BS> {
         Hub { note }
     }
 
@@ -24,7 +24,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
         text: &str,
         alert: bool,
         sync: bool,
-    ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note.request(
             delay,
             req::HubLog {
@@ -53,7 +53,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
         vinbound: Option<&str>,
         align: Option<bool>,
         sync: Option<bool>,
-    ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note.request(
             delay,
             req::HubSet {
@@ -80,7 +80,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
         self,
         delay: &mut impl DelayMs<u16>,
         allow: bool,
-    ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note.request(delay, req::HubSync {
             req: "hub.sync",
             allow: if allow { Some(true) } else { None }
@@ -93,7 +93,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Hub<'a, IOM> {
     pub fn sync_status(
         self,
         delay: &mut impl DelayMs<u16>,
-    ) -> Result<FutureResponse<'a, res::SyncStatus, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::SyncStatus, IOM, BS>, NoteError> {
         self.note
             .request_raw(delay, b"{\"req\":\"hub.sync.status\"}\n")?;
         Ok(FutureResponse::from(self.note))

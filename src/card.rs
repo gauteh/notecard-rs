@@ -8,37 +8,37 @@ use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
 
-pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
-    note: &'a mut Notecard<IOM>,
+pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+    note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
-    pub fn from(note: &mut Notecard<IOM>) -> Card<'_, IOM> {
+impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Card<'a, IOM, BS> {
+    pub fn from(note: &mut Notecard<IOM, BS>) -> Card<'_, IOM, BS> {
         Card { note }
     }
 
     /// Retrieves current date and time information. Upon power-up, the Notecard must complete a
     /// sync to Notehub in order to obtain time and location data. Before the time is obtained,
     /// this request will return `{"zone":"UTC,Unknown"}`.
-    pub fn time(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Time, IOM>, NoteError> {
+    pub fn time(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Time, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"card.time\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Returns general information about the Notecard's operating status.
-    pub fn status(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Status, IOM>, NoteError> {
+    pub fn status(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Status, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"card.status\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Performs a firmware restart of the Notecard.
-    pub fn restart(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+    pub fn restart(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"card.restart\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Retrieves the current location of the Notecard.
-    pub fn location(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Location, IOM>, NoteError> {
+    pub fn location(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Location, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"card.location\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
@@ -55,7 +55,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
         lat: Option<f32>,
         lon: Option<f32>,
         minutes: Option<u32>,
-    ) -> Result<FutureResponse<'a, res::LocationMode, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::LocationMode, IOM, BS>, NoteError> {
         self.note.request(delay, req::LocationMode {
             req: "card.location.mode",
             mode: mode.map(heapless::String::from),
@@ -78,7 +78,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
         sync: bool,
         hours: Option<u32>,
         file: Option<&str>,
-    ) -> Result<FutureResponse<'a, res::LocationTrack, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::LocationTrack, IOM, BS>, NoteError> {
         self.note.request(delay, req::LocationTrack {
             req: "card.location.track",
             start: start.then(|| true),
@@ -92,13 +92,13 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Card<'a, IOM> {
         Ok(FutureResponse::from(self.note))
     }
 
-    pub fn wireless(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Wireless, IOM>, NoteError> {
+    pub fn wireless(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Wireless, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"card.wireless\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Returns firmware version information for the Notecard.
-    pub fn version(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Version, IOM>, NoteError> {
+    pub fn version(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Version, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"card.version\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }

@@ -24,7 +24,7 @@ const RESPONSE_DELAY: u16 = 25;
 
 /// The size of the shared request and receive buffer. Requests and responses may not serialize to
 /// any greater value than this.
-pub const BUF_SIZE: usize = 18 * 1024;
+pub const DEFAULT_BUF_SIZE: usize = 18 * 1024;
 
 #[derive(Debug, defmt::Format)]
 pub enum NoteState {
@@ -79,7 +79,10 @@ impl From<NotecardError> for NoteError {
 }
 
 /// The driver for the Notecard. Must be intialized before making any requests.
-pub struct Notecard<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
+pub struct Notecard<
+    IOM: Write<SevenBitAddress> + Read<SevenBitAddress>,
+    const BUF_SIZE: usize = DEFAULT_BUF_SIZE,
+> {
     i2c: IOM,
     addr: u8,
     state: NoteState,
@@ -88,14 +91,16 @@ pub struct Notecard<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
     buf: heapless::Vec<u8, BUF_SIZE>,
 }
 
-pub struct SuspendState {
+pub struct SuspendState<const BUF_SIZE: usize> {
     addr: u8,
     state: NoteState,
     buf: heapless::Vec<u8, BUF_SIZE>,
 }
 
-impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
-    pub fn new(i2c: IOM) -> Notecard<IOM> {
+impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
+    Notecard<IOM, BUF_SIZE>
+{
+    pub fn new(i2c: IOM) -> Notecard<IOM, BUF_SIZE> {
         Notecard {
             i2c,
             addr: 0x17,
@@ -107,7 +112,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     /// Free the IOM device and return the driver state so that it can be quickly resumed. It is
     /// not safe to change the state of the Notecard in the meantime, or create a second driver
     /// without using this state.
-    pub fn suspend(self) -> (IOM, SuspendState) {
+    pub fn suspend(self) -> (IOM, SuspendState<BUF_SIZE>) {
         (
             self.i2c,
             SuspendState {
@@ -119,7 +124,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     }
 
     /// Resume a previously [`suspend`]ed Notecard driver.
-    pub fn resume(i2c: IOM, state: SuspendState) -> Notecard<IOM> {
+    pub fn resume(i2c: IOM, state: SuspendState<BUF_SIZE>) -> Notecard<IOM, BUF_SIZE> {
         Notecard {
             i2c,
             addr: state.addr,
@@ -134,6 +139,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
             info!("note: initializing.");
             self.handshake(delay)
         } else {
+            error!("tried to initialize when already initialized.");
             Err(NoteError::WrongState)
         }
     }
@@ -186,7 +192,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
         }
     }
 
-    /// Read untill empty.
+    /// Read until empty.
     fn read(&mut self) -> Result<usize, NoteError> {
         if let NoteState::Response(avail) = self.state {
             // Chunk to read + notecard header (2 bytes)
@@ -226,6 +232,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
             Ok(available)
         } else {
+            error!("read: called when not waiting for response");
             Err(NoteError::WrongState)
         }
     }
@@ -244,6 +251,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
             Ok(&self.buf)
         } else {
+            error!("take response called when response not ready");
             Err(NoteError::WrongState)
         }
     }
@@ -277,7 +285,10 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
                 debug!("response read, deserializing.");
                 Ok(Some(self.take_response()?))
             }
-            _ => Err(NoteError::WrongState),
+            _ => {
+                error!("poll called when not receiving response");
+                Err(NoteError::WrongState)
+            }
         }
     }
 
@@ -347,7 +358,11 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
         // This is a limit that was required on some Arduinos. Can probably be increased up to
         // `CHUNK_LENGTH_MAX`. Should maybe be configurable.
         const CHUNK_LENGTH_I: usize = 30;
-        const CHUNK_LENGTH: usize = if CHUNK_LENGTH_I < CHUNK_LENGTH_MAX { CHUNK_LENGTH_I } else { CHUNK_LENGTH_MAX };
+        const CHUNK_LENGTH: usize = if CHUNK_LENGTH_I < CHUNK_LENGTH_MAX {
+            CHUNK_LENGTH_I
+        } else {
+            CHUNK_LENGTH_MAX
+        };
 
         // `note-c` uses `250` for `SEGMENT_LENGTH`. Round to closest divisible
         // by CHUNK_LENGTH so that we don't end up with unnecessarily fragmented
@@ -391,6 +406,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
 
             Ok(())
         } else {
+            error!("send data called when not ready for request.");
             Err(NoteError::WrongState)
         }
     }
@@ -415,17 +431,17 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Notecard<IOM> {
     }
 
     /// [card Requests](https://dev.blues.io/reference/notecard-api/card-requests/)
-    pub fn card(&mut self) -> card::Card<IOM> {
+    pub fn card(&mut self) -> card::Card<IOM, BUF_SIZE> {
         card::Card::from(self)
     }
 
     /// [note Requests](https://dev.blues.io/reference/notecard-api/note-requests/)
-    pub fn note(&mut self) -> note::Note<IOM> {
+    pub fn note(&mut self) -> note::Note<IOM, BUF_SIZE> {
         note::Note::from(self)
     }
 
     /// [hub Requests](https://dev.blues.io/reference/notecard-api/hub-requests/)
-    pub fn hub(&mut self) -> hub::Hub<IOM> {
+    pub fn hub(&mut self) -> hub::Hub<IOM, BUF_SIZE> {
         hub::Hub::from(self)
     }
 }
@@ -441,15 +457,16 @@ pub struct FutureResponse<
     'a,
     T: DeserializeOwned,
     IOM: Write<SevenBitAddress> + Read<SevenBitAddress>,
+    const BUF_SIZE: usize
 > {
-    note: &'a mut Notecard<IOM>,
+    note: &'a mut Notecard<IOM, BUF_SIZE>,
     _r: PhantomData<T>,
 }
 
-impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>>
-    FutureResponse<'a, T, IOM>
+impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
+    FutureResponse<'a, T, IOM, BUF_SIZE>
 {
-    fn from(note: &'a mut Notecard<IOM>) -> FutureResponse<'a, T, IOM> {
+    fn from(note: &'a mut Notecard<IOM, BUF_SIZE>) -> FutureResponse<'a, T, IOM, BUF_SIZE> {
         FutureResponse {
             note,
             _r: PhantomData,

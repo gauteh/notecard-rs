@@ -8,12 +8,12 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
 
-pub struct Note<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> {
-    note: &'a mut Notecard<IOM>,
+pub struct Note<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+    note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
-    pub fn from(note: &mut Notecard<IOM>) -> Note<'_, IOM> {
+impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Note<'a, IOM, BS> {
+    pub fn from(note: &mut Notecard<IOM, BS>) -> Note<'_, IOM, BS> {
         Note { note }
     }
 
@@ -31,7 +31,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
         body: Option<T>,
         payload: Option<&str>,
         sync: bool,
-    ) -> Result<FutureResponse<'a, res::Add, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::Add, IOM, BS>, NoteError> {
         self.note.request(
             delay,
             req::Add::<T> {
@@ -56,7 +56,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
         body: Option<T>,
         payload: Option<&str>,
         verify: bool,
-    ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note.request(
             delay,
             req::Update::<T> {
@@ -84,7 +84,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
         note: &str,
         delete: bool,
         deleted: bool,
-    ) -> Result<FutureResponse<'a, res::Get<T>, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::Get<T>, IOM, BS>, NoteError> {
         self.note.request(
             delay,
             req::Get {
@@ -104,7 +104,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
         delay: &mut impl DelayMs<u16>,
         file: &str,
         note: &str,
-    ) -> Result<FutureResponse<'a, res::Empty, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note.request(
             delay,
             req::Delete {
@@ -134,7 +134,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>> Note<'a, IOM> {
         file: Option<&str>,
         body: Option<T>,
         length: Option<u32>,
-    ) -> Result<FutureResponse<'a, res::Template, IOM>, NoteError> {
+    ) -> Result<FutureResponse<'a, res::Template, IOM, BS>, NoteError> {
         self.note.request(
             delay,
             req::Template::<T> {
@@ -263,7 +263,7 @@ pub mod res {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::BUF_SIZE;
+    use crate::DEFAULT_BUF_SIZE as BUF_SIZE;
 
     #[test]
     fn add_with_template() {
