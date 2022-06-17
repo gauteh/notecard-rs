@@ -1,7 +1,7 @@
 //! Protocol for transmitting: <https://dev.blues.io/notecard/notecard-guides/serial-over-i2c-protocol/>
 //! API: <https://dev.blues.io/reference/notecard-api/introduction/>
 //!
-
+#![feature(split_array)]
 #![cfg_attr(not(test), no_std)]
 
 use core::marker::PhantomData;
@@ -61,6 +61,8 @@ pub enum NoteError {
 
     TimeOut,
 
+    BufOverflow,
+
     /// Method called when notecarrier is in invalid state.
     WrongState,
 
@@ -106,6 +108,22 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
             addr: 0x17,
             state: NoteState::Handshake,
             buf: heapless::Vec::new(),
+        }
+    }
+
+    /// Resize the internal buffer, consuming the existing, and returning a new Notecard
+    /// instance.
+    pub fn resize_buf<const B: usize>(self) -> Result<Notecard<IOM, B>, NoteError> {
+        if B < self.buf.len() {
+            return Err(NoteError::BufOverflow);
+        } else {
+            let (buf, _) = self.buf.split_array_ref::<B>();
+            Ok(Notecard {
+                i2c: self.i2c,
+                addr: self.addr,
+                state: self.state,
+                buf: heapless::Vec::<_, B>::from_slice(buf).unwrap(),
+            })
         }
     }
 
@@ -457,14 +475,18 @@ pub struct FutureResponse<
     'a,
     T: DeserializeOwned,
     IOM: Write<SevenBitAddress> + Read<SevenBitAddress>,
-    const BUF_SIZE: usize
+    const BUF_SIZE: usize,
 > {
     note: &'a mut Notecard<IOM, BUF_SIZE>,
     _r: PhantomData<T>,
 }
 
-impl<'a, T: DeserializeOwned, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
-    FutureResponse<'a, T, IOM, BUF_SIZE>
+impl<
+        'a,
+        T: DeserializeOwned,
+        IOM: Write<SevenBitAddress> + Read<SevenBitAddress>,
+        const BUF_SIZE: usize,
+    > FutureResponse<'a, T, IOM, BUF_SIZE>
 {
     fn from(note: &'a mut Notecard<IOM, BUF_SIZE>) -> FutureResponse<'a, T, IOM, BUF_SIZE> {
         FutureResponse {

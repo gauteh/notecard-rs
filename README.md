@@ -17,8 +17,8 @@ if note.ping() {
 
 
 info!("note: card.time");
-info!("note: time: {:?}", note.card().time().unwrap().wait());
+info!("note: time: {:?}", note.card().time(&mut delay).unwrap().wait(&mut delay));
 
 info!("querying status..");
-info!("status: {:?}", note.card().status().unwrap().wait());
+info!("status: {:?}", note.card().status(&mut delay).unwrap().wait(&mut delay));
 ```
