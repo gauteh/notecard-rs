@@ -66,12 +66,12 @@ pub enum NoteError {
     /// Method called when notecarrier is in invalid state.
     WrongState,
 
-    NotecardErr(heapless::String<120>),
+    NotecardErr(heapless::String<256>),
 }
 
 #[derive(Deserialize, defmt::Format)]
 pub struct NotecardError {
-    err: heapless::String<120>,
+    err: heapless::String<256>,
 }
 
 impl From<NotecardError> for NoteError {
@@ -499,7 +499,7 @@ impl<
     pub fn poll(&mut self) -> Result<Option<T>, NoteError> {
         match self.note.poll()? {
             Some(body) if body.starts_with(br##"{"err":"##) => {
-                trace!("response is error response, parsing error..");
+                debug!("response is error response, parsing error..: {}", core::str::from_utf8(&body).unwrap_or("[invalid utf-8]"));
                 Err(serde_json_core::from_slice::<NotecardError>(body)
                     .map_err(|_| {
                         error!(
