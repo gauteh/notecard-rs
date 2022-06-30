@@ -1,3 +1,8 @@
+[![Crates.io](https://img.shields.io/crates/v/blues-notecard.svg)](https://crates.io/crates/blues-notecard)
+[![Documentation](https://docs.rs/blues-notecard/badge.svg)](https://docs.rs/blues-notecard/)
+
+
+
 # Rust driver for notecard
 
 This is a rust driver for the [blues.io](https://blues.io) [notecard](https://blues.io/products/notecard/) based on
