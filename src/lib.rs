@@ -153,13 +153,8 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
 
     /// Initialize the notecard driver by performing handshake with notecard.
     pub fn initialize(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
-        if matches!(self.state, NoteState::Handshake) {
-            info!("note: initializing.");
-            self.handshake(delay)
-        } else {
-            error!("tried to initialize when already initialized.");
-            Err(NoteError::WrongState)
-        }
+        info!("note: initializing.");
+        self.reset(delay)
     }
 
     /// Check if notecarrier is connected and responding.
@@ -333,8 +328,9 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     }
 
     /// Reset notecard driver and state. Any waiting responses will be invalidated
-    /// and time-out.
-    pub unsafe fn reset(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
+    /// and time-out. However, you won't be able to get a mutable reference without having
+    /// dropped the `FutureResponse`.
+    pub fn reset(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
         warn!("resetting: consuming any left-over response and perform a new handshake.");
 
         self.state = NoteState::Handshake;
@@ -390,43 +386,43 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         const CHUNK_DELAY: u16 = 20; // ms, https://github.com/blues/note-c/blob/master/n_lib.h#L52
         const SEGMENT_DELAY: u16 = 100; // ms, https://github.com/blues/note-c/blob/master/n_lib.h#L46
 
-        if matches!(self.state, NoteState::Request) {
-            match self.buf.last() {
-                Some(c) if *c == b'\n' => Ok(()),
-                _ => Err(NoteError::InvalidRequest),
-            }?;
-
-            trace!("note: making request: {}", unsafe {
-                core::str::from_utf8_unchecked(&self.buf)
-            });
-
-            let mut buf = heapless::Vec::<u8, { CHUNK_LENGTH + 1 }>::new();
-            for segment in self.buf.chunks(SEGMENT_LENGTH) {
-                for c in segment.chunks(buf.capacity() - 1) {
-                    buf.push(c.len() as u8).unwrap();
-                    buf.extend_from_slice(c).unwrap();
-
-                    trace!("note: sending chunk: {} => {}", &buf, unsafe {
-                        core::str::from_utf8_unchecked(&buf)
-                    });
-
-                    self.i2c
-                        .write(self.addr, &buf)
-                        .map_err(|_| NoteError::I2cWriteError)?;
-
-                    buf.clear();
-                    delay.delay_ms(CHUNK_DELAY);
-                }
-                delay.delay_ms(SEGMENT_DELAY);
-            }
-
-            self.state = NoteState::Poll(0);
-
-            Ok(())
-        } else {
-            error!("send data called when not ready for request.");
-            Err(NoteError::WrongState)
+        if !matches!(self.state, NoteState::Request) {
+            warn!("note: request: wrong-state, resetting before new request.");
+            self.reset(delay)?;
         }
+
+        match self.buf.last() {
+            Some(c) if *c == b'\n' => Ok(()),
+            _ => Err(NoteError::InvalidRequest),
+        }?;
+
+        trace!("note: making request: {}", unsafe {
+            core::str::from_utf8_unchecked(&self.buf)
+        });
+
+        let mut buf = heapless::Vec::<u8, { CHUNK_LENGTH + 1 }>::new();
+        for segment in self.buf.chunks(SEGMENT_LENGTH) {
+            for c in segment.chunks(buf.capacity() - 1) {
+                buf.push(c.len() as u8).unwrap();
+                buf.extend_from_slice(c).unwrap();
+
+                trace!("note: sending chunk: {} => {}", &buf, unsafe {
+                    core::str::from_utf8_unchecked(&buf)
+                });
+
+                self.i2c
+                    .write(self.addr, &buf)
+                    .map_err(|_| NoteError::I2cWriteError)?;
+
+                buf.clear();
+                delay.delay_ms(CHUNK_DELAY);
+            }
+            delay.delay_ms(SEGMENT_DELAY);
+        }
+
+        self.state = NoteState::Poll(0);
+
+        Ok(())
     }
 
     /// Make a request. After making a request a [FutureResponse] must be created and consumed
@@ -499,7 +495,10 @@ impl<
     pub fn poll(&mut self) -> Result<Option<T>, NoteError> {
         match self.note.poll()? {
             Some(body) if body.starts_with(br##"{"err":"##) => {
-                debug!("response is error response, parsing error..: {}", core::str::from_utf8(&body).unwrap_or("[invalid utf-8]"));
+                debug!(
+                    "response is error response, parsing error..: {}",
+                    core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
+                );
                 Err(serde_json_core::from_slice::<NotecardError>(body)
                     .map_err(|_| {
                         error!(
