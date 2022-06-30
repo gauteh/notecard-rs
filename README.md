@@ -8,6 +8,8 @@
 This is a rust driver for the [blues.io](https://blues.io) [notecard](https://blues.io/products/notecard/) based on
 [embedded-hal](https://github.com/rust-embedded/embedded-hal).
 
+<img src="notecard_measurements.png" width="50%"></img>
+
 ```rust
 use notecard::Note;
 
