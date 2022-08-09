@@ -54,7 +54,7 @@ pub enum NoteError {
 
     SerError,
 
-    // Request does end with '\n'.
+    /// Request does not end with '\n'.
     InvalidRequest,
 
     RemainingData,
@@ -115,7 +115,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     /// instance.
     pub fn resize_buf<const B: usize>(self) -> Result<Notecard<IOM, B>, NoteError> {
         if B < self.buf.len() {
-            return Err(NoteError::BufOverflow);
+            Err(NoteError::BufOverflow)
         } else {
             let (buf, _) = self.buf.split_array_ref::<B>();
             Ok(Notecard {
@@ -333,6 +333,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     pub fn reset(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
         warn!("resetting: consuming any left-over response and perform a new handshake.");
 
+        self.buf.clear(); // clear in case data_query() is 0.
         self.state = NoteState::Handshake;
         self.handshake(delay)
     }
@@ -361,7 +362,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
             .resize(cmd.len(), 0)
             .map_err(|_| NoteError::SerError)?;
         let buf: &mut [u8] = self.buf.as_mut();
-        buf.copy_from_slice(&cmd);
+        buf.copy_from_slice(cmd);
         self.send_request(delay)
     }
 
@@ -383,18 +384,23 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         // chunks. https://github.com/blues/note-c/blob/master/n_lib.h#L40 .
         const SEGMENT_LENGTH: usize = (250 / CHUNK_LENGTH) * CHUNK_LENGTH;
 
-        const CHUNK_DELAY: u16 = 20; // ms, https://github.com/blues/note-c/blob/master/n_lib.h#L52
-        const SEGMENT_DELAY: u16 = 100; // ms, https://github.com/blues/note-c/blob/master/n_lib.h#L46
+        // `note-c`: https://github.com/blues/note-c/blob/master/n_lib.h#L52
+        // Original: 20 ms
+        const CHUNK_DELAY: u16 = 20; // ms
+                                     //
+        // `note-c`: https://github.com/blues/note-c/blob/master/n_lib.h#L46
+        // Original: 250 ms. We have used 100 ms a lot, but get spurious I2cWriteError, which could
+        // be related to this.
+        const SEGMENT_DELAY: u16 = 250; // ms
 
         if !matches!(self.state, NoteState::Request) {
             warn!("note: request: wrong-state, resetting before new request.");
             self.reset(delay)?;
         }
 
-        match self.buf.last() {
-            Some(c) if *c == b'\n' => Ok(()),
-            _ => Err(NoteError::InvalidRequest),
-        }?;
+        if self.buf.last() != Some(&b'\n') {
+            return Err(NoteError::InvalidRequest);
+        }
 
         trace!("note: making request: {}", unsafe {
             core::str::from_utf8_unchecked(&self.buf)
