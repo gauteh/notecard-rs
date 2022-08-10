@@ -66,6 +66,9 @@ pub enum NoteError {
     /// Method called when notecarrier is in invalid state.
     WrongState,
 
+    /// Notecard firmware is being updated.
+    DFUInProgress,
+
     NotecardErr(heapless::String<256>),
 }
 
@@ -76,7 +79,11 @@ pub struct NotecardError {
 
 impl From<NotecardError> for NoteError {
     fn from(n: NotecardError) -> NoteError {
-        NoteError::NotecardErr(n.err)
+        if n.err.contains("{dfu-in-progress}") {
+            NoteError::DFUInProgress
+        } else {
+            NoteError::NotecardErr(n.err)
+        }
     }
 }
 
