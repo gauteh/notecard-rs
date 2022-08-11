@@ -41,7 +41,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
                 body,
                 payload,
                 sync: Some(sync),
-                ..Default::default()
+                ..<req::Add<T> as Default>::default()
             },
         )?;
         Ok(FutureResponse::from(self.note))

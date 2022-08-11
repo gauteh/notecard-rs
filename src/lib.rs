@@ -2,6 +2,7 @@
 //! API: <https://dev.blues.io/reference/notecard-api/introduction/>
 //!
 #![feature(split_array)]
+#![feature(type_changing_struct_update)]
 #![cfg_attr(not(test), no_std)]
 
 use core::marker::PhantomData;
@@ -16,15 +17,49 @@ pub mod card;
 pub mod hub;
 pub mod note;
 
-/// Milliseconds to wait on response.
-const RESPONSE_TIMEOUT: u16 = 5000;
-
 /// Delay between polling for new response.
 const RESPONSE_DELAY: u16 = 25;
 
 /// The size of the shared request and receive buffer. Requests and responses may not serialize to
 /// any greater value than this.
 pub const DEFAULT_BUF_SIZE: usize = 18 * 1024;
+
+#[derive(Debug, defmt::Format)]
+pub struct NotecardConfig {
+    /// I2C address of Notecard.
+    pub i2c_addr: u8,
+
+    /// Timeout while waiting for response (ms).
+    pub response_timeout: u16,
+
+    /// Delay between chunks when transmitting (ms).
+    ///
+    /// See note on `segment_delay`.
+    ///
+    /// > `note-c`: https://github.com/blues/note-c/blob/master/n_lib.h#L52
+    /// > Original: 20 ms
+    pub chunk_delay: u16,
+
+    /// Delay between segments when transmitting (ms).
+    ///
+    /// > These delay may be almost eliminated for Notecard firmware version 3.4 (and presumably
+    /// above).
+    ///
+    /// > `note-c`: https://github.com/blues/note-c/blob/master/n_lib.h#L46
+    /// > Original: 250 ms.
+    pub segment_delay: u16,
+}
+
+impl Default for NotecardConfig {
+    fn default() -> Self {
+        NotecardConfig {
+            i2c_addr: 0x17,
+            response_timeout: 5000,
+            chunk_delay: 20,
+            segment_delay: 250,
+        }
+    }
+}
 
 #[derive(Debug, defmt::Format)]
 pub enum NoteState {
@@ -98,23 +133,38 @@ pub struct Notecard<
 
     /// The receive buffer. Must be large enough to hold the largest response that will be received.
     buf: heapless::Vec<u8, BUF_SIZE>,
+
+    response_timeout: u16,
+    chunk_delay: u16,
+    segment_delay: u16,
 }
 
 pub struct SuspendState<const BUF_SIZE: usize> {
     addr: u8,
     state: NoteState,
     buf: heapless::Vec<u8, BUF_SIZE>,
+    response_timeout: u16,
+    chunk_delay: u16,
+    segment_delay: u16,
 }
 
 impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     Notecard<IOM, BUF_SIZE>
 {
     pub fn new(i2c: IOM) -> Notecard<IOM, BUF_SIZE> {
+        Self::new_with_config(i2c, NotecardConfig::default())
+    }
+
+    pub fn new_with_config(i2c: IOM, c: NotecardConfig) -> Notecard<IOM, BUF_SIZE> {
         Notecard {
             i2c,
-            addr: 0x17,
+            addr: c.i2c_addr,
             state: NoteState::Handshake,
             buf: heapless::Vec::new(),
+
+            response_timeout: c.response_timeout,
+            chunk_delay: c.chunk_delay,
+            segment_delay: c.segment_delay,
         }
     }
 
@@ -126,10 +176,8 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         } else {
             let (buf, _) = self.buf.split_array_ref::<B>();
             Ok(Notecard {
-                i2c: self.i2c,
-                addr: self.addr,
-                state: self.state,
                 buf: heapless::Vec::<_, B>::from_slice(buf).unwrap(),
+                ..self
             })
         }
     }
@@ -144,6 +192,9 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
                 state: self.state,
                 buf: self.buf,
                 addr: self.addr,
+                response_timeout: self.response_timeout,
+                chunk_delay: self.chunk_delay,
+                segment_delay: self.segment_delay,
             },
         )
     }
@@ -155,6 +206,9 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
             addr: state.addr,
             state: state.state,
             buf: state.buf,
+            response_timeout: state.response_timeout,
+            chunk_delay: state.chunk_delay,
+            segment_delay: state.segment_delay,
         }
     }
 
@@ -318,7 +372,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         warn!("note: trying to consume any left-over response.");
         let mut waited = 0;
 
-        while waited < RESPONSE_TIMEOUT {
+        while waited < self.response_timeout {
             if matches!(self.poll()?, Some(_)) {
                 self.buf.clear();
                 return Ok(());
@@ -330,7 +384,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
 
         self.buf.clear();
 
-        error!("response timed out (>= {}).", RESPONSE_TIMEOUT);
+        error!("response timed out (>= {}).", self.response_timeout);
         Err(NoteError::TimeOut)
     }
 
@@ -391,15 +445,6 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         // chunks. https://github.com/blues/note-c/blob/master/n_lib.h#L40 .
         const SEGMENT_LENGTH: usize = (250 / CHUNK_LENGTH) * CHUNK_LENGTH;
 
-        // `note-c`: https://github.com/blues/note-c/blob/master/n_lib.h#L52
-        // Original: 20 ms
-        const CHUNK_DELAY: u16 = 20; // ms
-                                     //
-        // `note-c`: https://github.com/blues/note-c/blob/master/n_lib.h#L46
-        // Original: 250 ms. We have used 100 ms a lot, but get spurious I2cWriteError, which could
-        // be related to this.
-        const SEGMENT_DELAY: u16 = 250; // ms
-
         if !matches!(self.state, NoteState::Request) {
             warn!("note: request: wrong-state, resetting before new request.");
             self.reset(delay)?;
@@ -428,9 +473,9 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
                     .map_err(|_| NoteError::I2cWriteError)?;
 
                 buf.clear();
-                delay.delay_ms(CHUNK_DELAY);
+                delay.delay_ms(self.chunk_delay);
             }
-            delay.delay_ms(SEGMENT_DELAY);
+            delay.delay_ms(self.segment_delay);
         }
 
         self.state = NoteState::Poll(0);
@@ -546,7 +591,7 @@ impl<
     pub fn wait_raw(mut self, delay: &mut impl DelayMs<u16>) -> Result<&'a [u8], NoteError> {
         let mut waited = 0;
 
-        while waited < RESPONSE_TIMEOUT {
+        while waited < self.note.response_timeout {
             match self.poll()? {
                 Some(_) => return Ok(self.note.take_response()?),
                 None => (),
@@ -556,7 +601,7 @@ impl<
             waited += RESPONSE_DELAY;
         }
 
-        error!("response timed out (>= {}).", RESPONSE_TIMEOUT);
+        error!("response timed out (>= {}).", self.note.response_timeout);
         Err(NoteError::TimeOut)
     }
 
@@ -564,7 +609,7 @@ impl<
     pub fn wait(mut self, delay: &mut impl DelayMs<u16>) -> Result<T, NoteError> {
         let mut waited = 0;
 
-        while waited < RESPONSE_TIMEOUT {
+        while waited < self.note.response_timeout {
             match self.poll()? {
                 Some(r) => return Ok(r),
                 None => (),
@@ -574,7 +619,7 @@ impl<
             waited += RESPONSE_DELAY;
         }
 
-        error!("response timed out (>= {}).", RESPONSE_TIMEOUT);
+        error!("response timed out (>= {}).", self.note.response_timeout);
         Err(NoteError::TimeOut)
     }
 }
