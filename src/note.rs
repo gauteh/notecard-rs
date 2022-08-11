@@ -22,7 +22,8 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
     /// Notefile or outbound queue file (.qo/.qos). When sending this request to Notehub, the file
     /// must either be a DB Notefile or an inbound queue file (.qi/.qis).
     ///
-    /// The size of the payload seems to be 250 bytes maximum.
+    /// If you don't use a template the size of the payload is maximum 250 bytes, with a template 8KB
+    /// seems to work.
     pub fn add<T: Serialize + Default>(
         self,
         delay: &mut impl DelayMs<u16>,
