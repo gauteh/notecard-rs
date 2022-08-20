@@ -11,6 +11,7 @@ use core::marker::PhantomData;
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use heapless::{String, Vec};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub mod card;
@@ -85,7 +86,7 @@ pub enum NoteError {
 
     I2cReadError,
 
-    DeserError,
+    DeserError(String<256>),
 
     SerError,
 
@@ -104,12 +105,20 @@ pub enum NoteError {
     /// Notecard firmware is being updated.
     DFUInProgress,
 
-    NotecardErr(heapless::String<256>),
+    NotecardErr(String<256>),
+}
+
+impl NoteError {
+    pub fn new_desererror(msg: &[u8]) -> NoteError {
+        let msg = core::str::from_utf8(&msg).unwrap_or("[invalid utf-8]");
+        let (msg, _) = msg.split_at(256);
+        NoteError::DeserError(String::from(msg))
+    }
 }
 
 #[derive(Deserialize, defmt::Format)]
 pub struct NotecardError {
-    err: heapless::String<256>,
+    err: String<256>,
 }
 
 impl From<NotecardError> for NoteError {
@@ -132,7 +141,7 @@ pub struct Notecard<
     state: NoteState,
 
     /// The receive buffer. Must be large enough to hold the largest response that will be received.
-    buf: heapless::Vec<u8, BUF_SIZE>,
+    buf: Vec<u8, BUF_SIZE>,
 
     response_timeout: u16,
     chunk_delay: u16,
@@ -142,7 +151,7 @@ pub struct Notecard<
 pub struct SuspendState<const BUF_SIZE: usize> {
     addr: u8,
     state: NoteState,
-    buf: heapless::Vec<u8, BUF_SIZE>,
+    buf: Vec<u8, BUF_SIZE>,
     response_timeout: u16,
     chunk_delay: u16,
     segment_delay: u16,
@@ -160,7 +169,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
             i2c,
             addr: c.i2c_addr,
             state: NoteState::Handshake,
-            buf: heapless::Vec::new(),
+            buf: Vec::new(),
 
             response_timeout: c.response_timeout,
             chunk_delay: c.chunk_delay,
@@ -176,7 +185,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         } else {
             let (buf, _) = self.buf.split_array_ref::<B>();
             Ok(Notecard {
-                buf: heapless::Vec::<_, B>::from_slice(buf).unwrap(),
+                buf: Vec::<_, B>::from_slice(buf).unwrap(),
                 ..self
             })
         }
@@ -270,7 +279,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     fn read(&mut self) -> Result<usize, NoteError> {
         if let NoteState::Response(avail) = self.state {
             // Chunk to read + notecard header (2 bytes)
-            let mut bytes = heapless::Vec::<u8, 128>::new();
+            let mut bytes = Vec::<u8, 128>::new();
 
             let sz = (bytes.capacity() - 2).min(avail);
             bytes.resize(sz + 2, 0).unwrap();
@@ -412,21 +421,6 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         Ok(())
     }
 
-    /// Make a raw request. The byte slice must end with `\n`. After making a request a
-    /// [FutureResponse] must be created and consumed.
-    pub(crate) fn request_raw(
-        &mut self,
-        delay: &mut impl DelayMs<u16>,
-        cmd: &[u8],
-    ) -> Result<(), NoteError> {
-        self.buf
-            .resize(cmd.len(), 0)
-            .map_err(|_| NoteError::SerError)?;
-        let buf: &mut [u8] = self.buf.as_mut();
-        buf.copy_from_slice(cmd);
-        self.send_request(delay)
-    }
-
     /// Sends request from buffer.
     fn send_request(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
         // This is presumably limited by the notecard firmware.
@@ -458,7 +452,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
             core::str::from_utf8_unchecked(&self.buf)
         });
 
-        let mut buf = heapless::Vec::<u8, { CHUNK_LENGTH + 1 }>::new();
+        let mut buf = Vec::<u8, { CHUNK_LENGTH + 1 }>::new();
         for segment in self.buf.chunks(SEGMENT_LENGTH) {
             for c in segment.chunks(buf.capacity() - 1) {
                 buf.push(c.len() as u8).unwrap();
@@ -481,6 +475,22 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         self.state = NoteState::Poll(0);
 
         Ok(())
+    }
+
+    /// Make a raw request. The byte slice must end with `\n`. After making a request a
+    /// [FutureResponse] must be created and consumed.
+    pub(crate) fn request_raw(
+        &mut self,
+        delay: &mut impl DelayMs<u16>,
+        cmd: &[u8],
+    ) -> Result<(), NoteError> {
+        self.buf.clear();
+        self.buf
+            .resize(cmd.len(), 0)
+            .map_err(|_| NoteError::BufOverflow)?;
+        let buf: &mut [u8] = self.buf.as_mut();
+        buf.copy_from_slice(cmd);
+        self.send_request(delay)
     }
 
     /// Make a request. After making a request a [FutureResponse] must be created and consumed
@@ -557,16 +567,16 @@ impl<
                     "response is error response, parsing error..: {}",
                     core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
                 );
-                Err(serde_json_core::from_slice::<NotecardError>(body)
-                    .map_err(|_| {
+                Err(serde_json_core::from_slice::<NotecardError>(body).map_or_else(
+                    |_| {
                         error!(
                             "failed to deserialize: {}",
                             core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
                         );
-                        NoteError::DeserError
-                    })?
-                    .0
-                    .into())
+                        NoteError::new_desererror(&body)
+                    },
+                    |(e, _)| NoteError::from(e),
+                ))
             }
             Some(body) => {
                 trace!("response is regular, parsing..");
@@ -577,7 +587,7 @@ impl<
                                 "failed to deserialize: {}",
                                 core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
                             );
-                            NoteError::DeserError
+                            NoteError::new_desererror(&body)
                         })?
                         .0,
                 ))
