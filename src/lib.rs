@@ -111,8 +111,9 @@ pub enum NoteError {
 impl NoteError {
     pub fn new_desererror(msg: &[u8]) -> NoteError {
         let msg = core::str::from_utf8(&msg).unwrap_or("[invalid utf-8]");
-        let (msg, _) = msg.split_at(256);
-        NoteError::DeserError(String::from(msg))
+        let mut s = String::new();
+        s.push_str(msg).ok();
+        NoteError::DeserError(s)
     }
 }
 
