@@ -320,14 +320,14 @@ mod tests {
         let b64 = &b64[..sz];
         let b64 = core::str::from_utf8(&b64).unwrap();
 
-        let add = req::Add {
+        let add = req::Add::<AxlPacket> {
             req: "note.add",
             file: Some("axl.qo".into()),
             note: Some("?".into()),
             body: Some(p),
             payload: Some(b64),
             sync: Some(false),
-            ..Default::default()
+            ..req::Add::<AxlPacket>::default()
         };
 
         let cmd = serde_json_core::to_vec::<_, { BUF_SIZE }>(&add).unwrap();

@@ -373,6 +373,11 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_exceed_string_size() {
+        serde_json_core::from_str::<res::LocationMode>(r#"{"seconds":60,"mode":"periodicperiodicperiodicperiodicperiodicperiodicperiodic"}"#).ok();
+    }
+
+    #[test]
     fn test_location_searching() {
         serde_json_core::from_str::<res::Location>(
             r#"{"status":"GPS search (111 sec, 32/33 dB SNR, 0/1 sats) {gps-active} {gps-signal} {gps-sats}","mode":"continuous"}"#).unwrap();
