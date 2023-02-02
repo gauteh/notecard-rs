@@ -256,7 +256,7 @@ pub mod res {
         pub ver_major: u8,
         pub ver_minor: u8,
         pub ver_patch: u8,
-        pub ver_build: u16,
+        pub ver_build: u32,
         pub built: heapless::String<24>,
     }
 
@@ -297,6 +297,12 @@ mod tests {
   "sku":     "NOTE-WBNA500",
   "api":     1
 }"##;
+        serde_json_core::from_slice::<res::Version>(r).unwrap();
+    }
+
+    #[test]
+    fn test_version_411() {
+        let r = br##"{"version":"notecard-4.1.1.4015681","device":"dev:000000000000000","name":"Blues Wireless Notecard","sku":"NOTE-WBEX-500","board":"1.11","api":4,"body":{"org":"Blues Wireless","product":"Notecard","version":"notecard-4.1.1","ver_major":4,"ver_minor":1,"ver_patch":1,"ver_build":4015681,"built":"Dec  5 2022 12:54:58"}}"##;
         serde_json_core::from_slice::<res::Version>(r).unwrap();
     }
 
