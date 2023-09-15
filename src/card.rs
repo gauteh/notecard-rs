@@ -76,7 +76,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         start: bool,
         heartbeat: bool,
         sync: bool,
-        hours: Option<u32>,
+        hours: Option<i32>,
         file: Option<&str>,
     ) -> Result<FutureResponse<'a, res::LocationTrack, IOM, BS>, NoteError> {
         self.note.request(delay, req::LocationTrack {
@@ -124,7 +124,7 @@ pub mod req {
         pub stop: Option<bool>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub hours: Option<u32>,
+        pub hours: Option<i32>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub file: Option<heapless::String<20>>,
@@ -172,7 +172,7 @@ pub mod res {
         pub stop: Option<bool>,
         pub heartbeat: Option<bool>,
         pub seconds: Option<u32>,
-        pub hours: Option<u32>,
+        pub hours: Option<i32>,
         pub file: Option<heapless::String<20>>,
     }
 
