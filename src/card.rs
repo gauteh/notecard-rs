@@ -339,6 +339,23 @@ mod tests {
     }
 
     #[test]
+    fn test_card_time_sa() {
+        let r = br##"
+        {
+          "time": 1599769214,
+          "area": "Kommetjie Western Cape",
+          "zone": "Africa/Johannesburg",
+          "minutes": -300,
+          "lat": 42.5776,
+          "lon": -70.87134,
+          "country": "ZA"
+        }
+        "##;
+
+        serde_json_core::from_slice::<res::Time>(r).unwrap();
+    }
+
+    #[test]
     fn test_card_time_err() {
         let r = br##"{"err":"time is not yet set","zone":"UTC,Unknown"}"##;
         serde_json_core::from_slice::<NotecardError>(r).unwrap();
