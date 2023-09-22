@@ -178,9 +178,9 @@ pub mod res {
 
     #[derive(Deserialize, defmt::Format)]
     pub struct LocationMode {
-        pub mode: heapless::String<20>,
+        pub mode: heapless::String<60>,
         pub seconds: Option<u32>,
-        pub vseconds: Option<heapless::String<20>>,
+        pub vseconds: Option<heapless::String<40>>,
         pub max: Option<u32>,
         pub lat: Option<f64>,
         pub lon: Option<f64>,
@@ -190,7 +190,7 @@ pub mod res {
     #[derive(Deserialize, defmt::Format)]
     pub struct Location {
         pub status: heapless::String<120>,
-        pub mode: heapless::String<20>,
+        pub mode: heapless::String<120>,
         pub lat: Option<f64>,
         pub lon: Option<f64>,
         pub time: Option<u32>,
@@ -200,17 +200,17 @@ pub mod res {
     #[derive(Deserialize, defmt::Format)]
     pub struct Time {
         pub time: Option<u32>,
-        pub area: Option<heapless::String<20>>,
-        pub zone: Option<heapless::String<20>>,
+        pub area: Option<heapless::String<120>>,
+        pub zone: Option<heapless::String<120>>,
         pub minutes: Option<i32>,
         pub lat: Option<f64>,
         pub lon: Option<f64>,
-        pub country: Option<heapless::String<10>>,
+        pub country: Option<heapless::String<120>>,
     }
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Status {
-        pub status: heapless::String<10>,
+        pub status: heapless::String<40>,
         #[serde(default)]
         pub usb: bool,
         pub storage: usize,
