@@ -37,6 +37,13 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
         Ok(FutureResponse::from(self.note))
     }
 
+    /// The [hub.get](https://dev.blues.io/api-reference/notecard-api/hub-requests/#hub-get) request
+    /// retrieves the current Notehub configuration for the Natecard.
+    pub fn get(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Hub, IOM, BS>, NoteError> {
+        self.note.request_raw(delay, b"{\"req\":\"hub.get\"}\n")?;
+        Ok(FutureResponse::from(self.note))
+    }
+
     /// The [hub.set](https://dev.blues.io/reference/notecard-api/hub-requests/#hub-set) request is
     /// the primary method for controlling the Notecard's Notehub connection and sync behavior.
     pub fn set(
@@ -174,6 +181,20 @@ pub mod res {
     pub struct Empty {}
 
     #[derive(Deserialize, defmt::Format)]
+    pub struct Hub {
+        pub device: Option<heapless::String<40>>,
+        pub product: Option<heapless::String<120>>,
+        pub mode: Option<self::req::HubMode>,
+        pub outbound: Option<u32>,
+        pub voutbound: Option<f32>,
+        pub inbound: Option<u32>,
+        pub vinbound: Option<f32>,
+        pub host: Option<heapless::String<40>>,
+        pub sn: Option<heapless::String<120>>,
+        pub sync: Option<bool>,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
     pub struct SyncStatus {
         pub status: Option<heapless::String<1024>>,
         pub time: Option<u32>,
@@ -190,6 +211,20 @@ mod tests {
     #[test]
     pub fn test_empty() {
         serde_json_core::from_str::<res::Empty>(r#"{}"#).unwrap();
+    }
+
+    #[test]
+    fn hub_get() {
+        let r = br##"{
+    "device": "dev:000000000000000",
+    "product": "testprod",
+    "mode": "periodic",
+    "outbound": 60,
+    "inbound": 240,
+    "host": "a.notefile.net",
+    "sn": "test-serial"
+}"##;
+        serde_json_core::from_slice::<res::Hub>(r).unwrap();
     }
 
     #[test]
