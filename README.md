@@ -1,5 +1,6 @@
 [![Crates.io](https://img.shields.io/crates/v/blues-notecard.svg)](https://crates.io/crates/blues-notecard)
 [![Documentation](https://docs.rs/blues-notecard/badge.svg)](https://docs.rs/blues-notecard/)
+[![tests](https://github.com/gauteh/notecard-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/gauteh/notecard-rs/actions/workflows/rust.yml)
 
 
 
