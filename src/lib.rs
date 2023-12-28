@@ -17,6 +17,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 pub mod card;
 pub mod hub;
 pub mod note;
+pub mod dfu;
 
 /// Delay between polling for new response.
 const RESPONSE_DELAY: u16 = 25;
