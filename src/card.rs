@@ -102,6 +102,20 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         self.note.request_raw(delay, b"{\"req\":\"card.version\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
+
+    /// Configure Notecard Outboard Firmware Update feature
+    /// Added in v3.5.1 Notecard Firmware.
+    pub fn dfu(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        name: Option<req::DFUName>,
+        on: Option<bool>,
+        stop: Option<bool>,
+    ) -> Result<FutureResponse<'a, res::DFU, IOM, BS>, NoteError> {
+        self.note.request(delay, req::DFU::new(name, on, stop))?;
+        Ok(FutureResponse::from(self.note))
+    }
+
 }
 
 pub mod req {
@@ -157,6 +171,60 @@ pub mod req {
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub minutes: Option<u32>,
+    }
+
+    #[derive(Deserialize, Serialize, defmt::Format, PartialEq, Debug)]
+    #[serde(rename_all = "lowercase")]
+    pub enum DFUName {
+        Esp32,
+        Stm32,
+        #[serde(rename = "stm32-bi")]
+        Stm32Bi,
+        McuBoot,
+        #[serde(rename = "-")]
+        Reset
+    }
+
+    #[derive(Deserialize, Serialize, defmt::Format)]
+    pub struct DFU {
+        pub req: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub name: Option<req::DFUName>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub on: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub off: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub stop: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub start: Option<bool>,
+    }
+
+    impl DFU {
+        pub fn new(
+            name: Option<req::DFUName>,
+            on: Option<bool>,
+            stop: Option<bool>,
+        ) -> Self {
+            // The `on`/`off` and `stop`/`start` parameters are exclusive
+            // When on is `true` we set `on` to `Some(True)` and `off` to `None`.
+            // When on is `false` we set `on` to `None` and `off` to `Some(True)`.
+            // This way we are not sending the `on` and `off` parameters together.
+            // Same thing applies to the `stop`/`start` parameter.
+            Self {
+                req: "card.dfu",
+                name,
+                on: on.and_then(|v| if v { Some(true) } else { None }),
+                off: on.and_then(|v| if v { None } else { Some(true) }),
+                stop: stop.and_then(|v| if v { Some(true) } else { None }),
+                start: stop.and_then(|v| if v { None } else { Some(true) }),
+            }
+        }
     }
 }
 
@@ -269,6 +337,11 @@ pub mod res {
         pub board: heapless::String<24>,
         pub sku: heapless::String<24>,
         pub api: u16,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct DFU {
+        pub name: req::DFUName,
     }
 }
 
@@ -410,5 +483,52 @@ mod tests {
     fn test_location_mode_err() {
         let r = br##"{"err":"seconds: field seconds: unmarshal: expected a int32 {io}"}"##;
         serde_json_core::from_slice::<NotecardError>(r).unwrap();
+    }
+
+    #[test]
+    fn test_dfu_name() {
+        let (res, _) = serde_json_core::from_str::<req::DFUName>(r#""esp32""#).unwrap();
+        assert_eq!(res, req::DFUName::Esp32);
+        let (res, _) = serde_json_core::from_str::<req::DFUName>(r#""stm32""#).unwrap();
+        assert_eq!(res, req::DFUName::Stm32);
+        let (res, _) = serde_json_core::from_str::<req::DFUName>(r#""stm32-bi""#).unwrap();
+        assert_eq!(res, req::DFUName::Stm32Bi);
+        let (res, _) = serde_json_core::from_str::<req::DFUName>(r#""mcuboot""#).unwrap();
+        assert_eq!(res, req::DFUName::McuBoot);
+        let (res, _) = serde_json_core::from_str::<req::DFUName>(r#""-""#).unwrap();
+        assert_eq!(res, req::DFUName::Reset);
+    }
+
+    #[test]
+    fn test_dfu_req() {
+        // Test basic request
+        let req = req::DFU::new(None, None, None);
+        let res: heapless::String<256> = serde_json_core::to_string(&req).unwrap();
+        assert_eq!(res, r#"{"req":"card.dfu"}"#);
+
+        // Test name & on request
+        let req = req::DFU::new(Some(req::DFUName::Esp32), Some(true), None);
+        let res: heapless::String<256> = serde_json_core::to_string(&req).unwrap();
+        assert_eq!(res, r#"{"req":"card.dfu","name":"esp32","on":true}"#);
+
+        // Test off request
+        let req = req::DFU::new(None, Some(false), None);
+        let res: heapless::String<256> = serde_json_core::to_string(&req).unwrap();
+        assert_eq!(res, r#"{"req":"card.dfu","off":true}"#);
+
+        // Test stop request
+        let req = req::DFU::new(None, None, Some(true));
+        let res: heapless::String<256> = serde_json_core::to_string(&req).unwrap();
+        assert_eq!(res, r#"{"req":"card.dfu","stop":true}"#);
+
+        // Test start request
+        let req = req::DFU::new(None, None, Some(false));
+        let res: heapless::String<256> = serde_json_core::to_string(&req).unwrap();
+        assert_eq!(res, r#"{"req":"card.dfu","start":true}"#);
+    }
+
+    #[test]
+    fn test_dfu_res() {
+        serde_json_core::from_str::<res::DFU>(r#"{"name": "stm32"}"#).unwrap();
     }
 }
