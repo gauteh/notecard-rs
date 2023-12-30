@@ -78,6 +78,28 @@ pub mod req {
         Card
     }
 
+    #[derive(Serialize, Deserialize, defmt::Format)]
+    pub struct Version<'a> {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub org: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub product: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub description: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub firmware: Option<&'a str>,
+        pub version: &'a str,
+        pub ver_major: u32,
+        pub ver_minor: u32,
+        pub ver_patch: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub ver_build: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub built: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub builder: Option<&'a str>,
+    }
+
     #[derive(Serialize, Deserialize, defmt::Format, Default)]
     pub struct Status<'a> {
         pub req: &'static str,
@@ -213,17 +235,31 @@ mod tests {
         assert_eq!(res, r#"{"req":"dfu.status"}"#);
 
         // Test a bunch of fields set
+        let ver = req::Version {
+            org: Some("Organization"),
+            product: Some("Product"),
+            description: Some("Firmware Description"),
+            firmware: Some("Firmware Name"),
+            version: "Firmware Version 1.0.0",
+            ver_major: 1,
+            ver_minor: 0,
+            ver_patch: 0,
+            ver_build: Some(12345),
+            built: Some("Some Sunny Day In December"),
+            builder: Some("The Compnay"),
+        };
+        let ver_str: heapless::String<512> = serde_json_core::to_string(&ver).unwrap();
         let req = req::Status::new(
             Some(req::StatusName::User),
             Some(true),
             Some("test status"),
-            Some("1.0.0"),
+            Some(ver_str.as_str()),
             Some("usb:1;high:1;normal:1;low:0;dead:0"),
             Some(true),
             Some("test error"),
         );
-        let res: heapless::String<256> = serde_json_core::to_string(&req).unwrap();
-        assert_eq!(res, r#"{"req":"dfu.status","name":"user","stop":true,"status":"test status","version":"1.0.0","vvalue":"usb:1;high:1;normal:1;low:0;dead:0","on":true,"err":"test error"}"#);
+        let res: heapless::String<512> = serde_json_core::to_string(&req).unwrap();
+        assert_eq!(res, r#"{"req":"dfu.status","name":"user","stop":true,"status":"test status","version":"{\"org\":\"Organization\",\"product\":\"Product\",\"description\":\"Firmware Description\",\"firmware\":\"Firmware Name\",\"version\":\"Firmware Version 1.0.0\",\"ver_major\":1,\"ver_minor\":0,\"ver_patch\":0,\"ver_build\":12345,\"built\":\"Some Sunny Day In December\",\"builder\":\"The Compnay\"}","vvalue":"usb:1;high:1;normal:1;low:0;dead:0","on":true,"err":"test error"}"#);
 
         // Test off set
         let req = req::Status::new(
