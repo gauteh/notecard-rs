@@ -528,6 +528,11 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     pub fn hub(&mut self) -> hub::Hub<IOM, BUF_SIZE> {
         hub::Hub::from(self)
     }
+
+    /// [dfu Requests](https://dev.blues.io/api-reference/notecard-api/dfu-requests/)
+    pub fn dfu(&mut self) -> dfu::DFU<IOM, BUF_SIZE> {
+        dfu::DFU::from(self)
+    }
 }
 
 /// A future response.
