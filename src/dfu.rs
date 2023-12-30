@@ -57,7 +57,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> D
     }
 }
 
-mod req {
+pub mod req {
     use super::*;
 
     #[derive(Serialize, Deserialize, defmt::Format, Default)]
@@ -136,7 +136,7 @@ mod req {
     }
 }
 
-mod res {
+pub mod res {
     use super::*;
 
     #[derive(Deserialize, defmt::Format)]
