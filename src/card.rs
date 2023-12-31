@@ -70,6 +70,8 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         Ok(FutureResponse::from(self.note))
     }
 
+    /// Store location data in a Notefile at the `periodic` interval, or using specified `heartbeat`.
+    /// Only available when `card.location.mode` has been set to `periodic`.
     pub fn location_track(
         self,
         delay: &mut impl DelayMs<u16>,
