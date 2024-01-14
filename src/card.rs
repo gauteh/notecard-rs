@@ -2,8 +2,8 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use embedded_hal::blocking::delay::DelayMs;
+use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
@@ -20,26 +20,41 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// Retrieves current date and time information. Upon power-up, the Notecard must complete a
     /// sync to Notehub in order to obtain time and location data. Before the time is obtained,
     /// this request will return `{"zone":"UTC,Unknown"}`.
-    pub fn time(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Time, IOM, BS>, NoteError> {
+    pub fn time(
+        self,
+        delay: &mut impl DelayMs<u16>,
+    ) -> Result<FutureResponse<'a, res::Time, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"card.time\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Returns general information about the Notecard's operating status.
-    pub fn status(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Status, IOM, BS>, NoteError> {
-        self.note.request_raw(delay, b"{\"req\":\"card.status\"}\n")?;
+    pub fn status(
+        self,
+        delay: &mut impl DelayMs<u16>,
+    ) -> Result<FutureResponse<'a, res::Status, IOM, BS>, NoteError> {
+        self.note
+            .request_raw(delay, b"{\"req\":\"card.status\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Performs a firmware restart of the Notecard.
-    pub fn restart(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
-        self.note.request_raw(delay, b"{\"req\":\"card.restart\"}\n")?;
+    pub fn restart(
+        self,
+        delay: &mut impl DelayMs<u16>,
+    ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
+        self.note
+            .request_raw(delay, b"{\"req\":\"card.restart\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Retrieves the current location of the Notecard.
-    pub fn location(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Location, IOM, BS>, NoteError> {
-        self.note.request_raw(delay, b"{\"req\":\"card.location\"}\n")?;
+    pub fn location(
+        self,
+        delay: &mut impl DelayMs<u16>,
+    ) -> Result<FutureResponse<'a, res::Location, IOM, BS>, NoteError> {
+        self.note
+            .request_raw(delay, b"{\"req\":\"card.location\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
@@ -56,17 +71,20 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         lon: Option<f32>,
         minutes: Option<u32>,
     ) -> Result<FutureResponse<'a, res::LocationMode, IOM, BS>, NoteError> {
-        self.note.request(delay, req::LocationMode {
-            req: "card.location.mode",
-            mode: mode.map(heapless::String::from),
-            seconds,
-            vseconds: vseconds.map(heapless::String::from),
-            delete,
-            max,
-            lat,
-            lon,
-            minutes,
-        })?;
+        self.note.request(
+            delay,
+            req::LocationMode {
+                req: "card.location.mode",
+                mode: mode.map(heapless::String::from),
+                seconds,
+                vseconds: vseconds.map(heapless::String::from),
+                delete,
+                max,
+                lat,
+                lon,
+                minutes,
+            },
+        )?;
         Ok(FutureResponse::from(self.note))
     }
 
@@ -81,27 +99,51 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         hours: Option<i32>,
         file: Option<&str>,
     ) -> Result<FutureResponse<'a, res::LocationTrack, IOM, BS>, NoteError> {
-        self.note.request(delay, req::LocationTrack {
-            req: "card.location.track",
-            start: start.then(|| true),
-            stop: (!start).then(|| true),
-            heartbeat: heartbeat.then(|| true),
-            sync: sync.then(|| true),
-            hours,
-            file: file.map(heapless::String::from),
-        })?;
+        self.note.request(
+            delay,
+            req::LocationTrack {
+                req: "card.location.track",
+                start: start.then(|| true),
+                stop: (!start).then(|| true),
+                heartbeat: heartbeat.then(|| true),
+                sync: sync.then(|| true),
+                hours,
+                file: file.map(heapless::String::from),
+            },
+        )?;
 
         Ok(FutureResponse::from(self.note))
     }
 
-    pub fn wireless(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Wireless, IOM, BS>, NoteError> {
-        self.note.request_raw(delay, b"{\"req\":\"card.wireless\"}\n")?;
+    pub fn wireless(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        mode: Option<&str>,
+        apn: Option<&str>,
+        method: Option<&str>,
+        hours: Option<u32>,
+    ) -> Result<FutureResponse<'a, res::Wireless, IOM, BS>, NoteError> {
+        self.note.request(
+            delay,
+            req::Wireless {
+                req: "card.wireless",
+                mode: mode.map(heapless::String::from),
+                method: method.map(heapless::String::from),
+                apn: apn.map(heapless::String::from),
+                hours,
+            },
+        )?;
+
         Ok(FutureResponse::from(self.note))
     }
 
     /// Returns firmware version information for the Notecard.
-    pub fn version(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Version, IOM, BS>, NoteError> {
-        self.note.request_raw(delay, b"{\"req\":\"card.version\"}\n")?;
+    pub fn version(
+        self,
+        delay: &mut impl DelayMs<u16>,
+    ) -> Result<FutureResponse<'a, res::Version, IOM, BS>, NoteError> {
+        self.note
+            .request_raw(delay, b"{\"req\":\"card.version\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
@@ -122,6 +164,23 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
 
 pub mod req {
     use super::*;
+
+    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    pub struct Wireless {
+        pub req: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub mode: Option<heapless::String<20>>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub apn: Option<heapless::String<120>>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub method: Option<heapless::String<120>>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub hours: Option<u32>,
+    }
 
     #[derive(Deserialize, Serialize, defmt::Format, Default)]
     pub struct LocationTrack {
@@ -472,7 +531,10 @@ mod tests {
 
     #[test]
     fn test_parse_exceed_string_size() {
-        serde_json_core::from_str::<res::LocationMode>(r#"{"seconds":60,"mode":"periodicperiodicperiodicperiodicperiodicperiodicperiodic"}"#).ok();
+        serde_json_core::from_str::<res::LocationMode>(
+            r#"{"seconds":60,"mode":"periodicperiodicperiodicperiodicperiodicperiodicperiodic"}"#,
+        )
+        .ok();
     }
 
     #[test]
