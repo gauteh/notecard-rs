@@ -172,7 +172,8 @@ pub mod res {
         Idle,
         Error,
         Downloading,
-        Ready
+        Ready,
+        Completed
     }
 
     #[derive(Deserialize, defmt::Format)]
