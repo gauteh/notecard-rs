@@ -1,7 +1,6 @@
 //! Protocol for transmitting: <https://dev.blues.io/notecard/notecard-guides/serial-over-i2c-protocol/>
 //! API: <https://dev.blues.io/reference/notecard-api/introduction/>
 //!
-#![feature(split_array)]
 #![feature(type_changing_struct_update)]
 #![cfg_attr(not(test), no_std)]
 
@@ -185,9 +184,8 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         if B < self.buf.len() {
             Err(NoteError::BufOverflow)
         } else {
-            let (buf, _) = self.buf.split_array_ref::<B>();
             Ok(Notecard {
-                buf: Vec::<_, B>::from_slice(buf).unwrap(),
+                buf: Vec::<_, B>::from_slice(&self.buf).unwrap(),
                 ..self
             })
         }
@@ -642,4 +640,24 @@ impl<
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use embedded_hal_mock::eh0::i2c::Mock;
+
+    pub fn new_mock() -> Notecard<Mock> {
+        // let exp = [ Transaction::write(0x17, vec![]) ];
+        let i2c = Mock::new(&[]);
+        Notecard::new(i2c)
+    }
+
+    #[test]
+    fn resize_buf() {
+        let c = new_mock();
+        assert_eq!(c.buf.capacity(), DEFAULT_BUF_SIZE);
+
+        let mut c = c.resize_buf::<1024>().unwrap();
+        assert_eq!(c.buf.capacity(), 1024);
+
+        c.i2c.done();
+    }
+}
