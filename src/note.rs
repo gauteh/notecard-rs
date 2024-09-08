@@ -133,6 +133,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
         self,
         delay: &mut impl DelayMs<u16>,
         file: Option<&str>,
+        format: Option<&str>,
         body: Option<T>,
         length: Option<u32>,
     ) -> Result<FutureResponse<'a, res::Template, IOM, BS>, NoteError> {
@@ -141,6 +142,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
             req::Template::<T> {
                 req: "note.template",
                 file: file.map(heapless::String::from),
+                format: format.map(heapless::String::from),
                 body,
                 length,
             },
@@ -220,6 +222,9 @@ mod req {
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub file: Option<heapless::String<20>>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub format: Option<heapless::String<20>>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub body: Option<T>,
