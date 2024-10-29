@@ -4,7 +4,7 @@
 use defmt::{debug, error, info, trace, warn};
 use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use super::{str_string, FutureResponse, NoteError, Notecard};
 
@@ -21,22 +21,30 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> W
     pub fn post<T: Serialize + Default>(
         self,
         delay: &mut impl DelayMs<u16>,
-        file: Option<&str>,
-        note: Option<&str>,
+        route: &str,
+        name: Option<&str>,
         body: Option<T>,
         payload: Option<&str>,
-        sync: bool,
-    ) -> Result<FutureResponse<'a, res::Add, IOM, BS>, NoteError> {
+        content: Option<&str>,
+        seconds: Option<u16>,
+        max: Option<u16>,
+        verify: Option<bool>,
+        nasync: Option<bool>,
+    ) -> Result<FutureResponse<'a, res::Post, IOM, BS>, NoteError> {
         self.note.request(
             delay,
-            req::Add::<T> {
-                req: "note.add",
-                file: str_string(file)?,
-                note: str_string(note)?,
+            req::Post::<T> {
+                req: "web.post",
+                route: heapless::String::try_from(route).map_err(NoteError::string_err)?,
+                name: str_string(name)?,
                 body,
                 payload,
-                sync: Some(sync),
-                ..<req::Add<T> as Default>::default()
+                content: str_string(content)?,
+                seconds,
+                max,
+                verify,
+                nasync,
+                ..<req::Post<T> as Default>::default()
             },
         )?;
         Ok(FutureResponse::from(self.note))
@@ -47,14 +55,13 @@ mod req {
     use super::*;
 
     #[derive(Deserialize, Serialize, Default)]
-    pub struct Add<'a, T: Serialize + Default> {
+    pub struct Post<'a, T: Serialize + Default> {
         pub req: &'static str,
 
-        #[serde(skip_serializing_if = "Option::is_none")]
-        pub file: Option<heapless::String<20>>,
+        pub route: heapless::String<256>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub note: Option<heapless::String<20>>,
+        pub name: Option<heapless::String<256>>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub body: Option<T>,
@@ -63,13 +70,19 @@ mod req {
         pub payload: Option<&'a str>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub sync: Option<bool>,
+        pub content: Option<heapless::String<256>>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub key: Option<heapless::String<20>>,
+        pub seconds: Option<u16>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub max: Option<u16>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub verify: Option<bool>,
+
+        #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+        pub nasync: Option<bool>,
     }
 }
 
@@ -77,8 +90,12 @@ pub mod res {
     use super::*;
 
     #[derive(Deserialize, defmt::Format)]
-    pub struct Add {
-        total: Option<u32>,
-        template: Option<bool>,
+    pub struct Post {
+        result: Option<u32>,
+        // body: Option<&'a str>,
+        // payload: Option<&'a str>,
+        // status: Option<&'a str>,
+        // cobs: Option<u32>,
+        // length: Option<u32>,
     }
 }
