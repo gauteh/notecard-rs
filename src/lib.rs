@@ -536,6 +536,11 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         note::Note::from(self)
     }
 
+    /// [web Requests](https://dev.blues.io/reference/notecard-api/web-requests/)
+    pub fn web(&mut self) -> note::Note<IOM, BUF_SIZE> {
+        note::Web::from(self)
+    }
+
     /// [hub Requests](https://dev.blues.io/reference/notecard-api/hub-requests/)
     pub fn hub(&mut self) -> hub::Hub<IOM, BUF_SIZE> {
         hub::Hub::from(self)
