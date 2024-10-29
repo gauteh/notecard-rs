@@ -6,7 +6,7 @@ use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::{FutureResponse, NoteError, Notecard, str_string};
+use super::{str_string, FutureResponse, NoteError, Notecard};
 
 pub struct Note<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
@@ -322,8 +322,8 @@ mod tests {
 
         let add = req::Add::<AxlPacket> {
             req: "note.add",
-            file: Some("axl.qo".into()),
-            note: Some("?".into()),
+            file: Some("axl.qo".try_into().unwrap()),
+            note: Some("?".try_into().unwrap()),
             body: Some(p),
             payload: Some(b64),
             sync: Some(false),

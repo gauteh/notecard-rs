@@ -39,7 +39,10 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
 
     /// The [hub.get](https://dev.blues.io/api-reference/notecard-api/hub-requests/#hub-get) request
     /// retrieves the current Notehub configuration for the Natecard.
-    pub fn get(self, delay: &mut impl DelayMs<u16>) -> Result<FutureResponse<'a, res::Hub, IOM, BS>, NoteError> {
+    pub fn get(
+        self,
+        delay: &mut impl DelayMs<u16>,
+    ) -> Result<FutureResponse<'a, res::Hub, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"hub.get\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
@@ -88,10 +91,13 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
         delay: &mut impl DelayMs<u16>,
         allow: bool,
     ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
-        self.note.request(delay, req::HubSync {
-            req: "hub.sync",
-            allow: if allow { Some(true) } else { None }
-        })?;
+        self.note.request(
+            delay,
+            req::HubSync {
+                req: "hub.sync",
+                allow: if allow { Some(true) } else { None },
+            },
+        )?;
 
         Ok(FutureResponse::from(self.note))
     }

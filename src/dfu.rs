@@ -2,8 +2,8 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use embedded_hal::blocking::delay::DelayMs;
+use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
@@ -20,12 +20,20 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> D
     /// Retrieves downloaded firmware data from the Notecard.
     /// Note: this request is functional only when the Notecard has been set to
     /// dfu mode with a `hub.set`, `mode:dfu` request.
-    pub fn get<const PS: usize>(self, delay: &mut impl DelayMs<u16>, length: usize, offset: Option<usize>) -> Result<FutureResponse<'a, res::Get<PS>, IOM, BS>, NoteError> {
-        self.note.request(delay, req::Get {
-            req: "dfu.get",
-            length,
-            offset,
-        })?;
+    pub fn get<const PS: usize>(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        length: usize,
+        offset: Option<usize>,
+    ) -> Result<FutureResponse<'a, res::Get<PS>, IOM, BS>, NoteError> {
+        self.note.request(
+            delay,
+            req::Get {
+                req: "dfu.get",
+                length,
+                offset,
+            },
+        )?;
 
         Ok(FutureResponse::from(self.note))
     }
@@ -41,17 +49,12 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> D
         version: Option<&str>,
         vvalue: Option<&str>, // This is not JSON :(
         on: Option<bool>,
-        err: Option<&str>
+        err: Option<&str>,
     ) -> Result<FutureResponse<'a, res::Status, IOM, BS>, NoteError> {
-        self.note.request(delay, req::Status::new(
-            name,
-            stop,
-            status,
-            version,
-            vvalue,
-            on,
-            err
-        ))?;
+        self.note.request(
+            delay,
+            req::Status::new(name, stop, status, version, vvalue, on, err),
+        )?;
 
         Ok(FutureResponse::from(self.note))
     }
@@ -67,15 +70,14 @@ pub mod req {
         pub length: usize,
 
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub offset: Option<usize>
+        pub offset: Option<usize>,
     }
-
 
     #[derive(Serialize, Deserialize, defmt::Format, PartialEq, Debug)]
     #[serde(rename_all = "lowercase")]
     pub enum StatusName {
         User,
-        Card
+        Card,
     }
 
     #[derive(Serialize, Deserialize, defmt::Format)]
@@ -137,7 +139,7 @@ pub mod req {
             version: Option<&'a str>,
             vvalue: Option<&'a str>, // This is not JSON :(
             on: Option<bool>,
-            err: Option<&'a str>
+            err: Option<&'a str>,
         ) -> Status<'a> {
             // The `on`/`off` parameters are exclusive
             // When on is `true` we set `on` to `Some(True)` and `off` to `None`.
@@ -163,7 +165,7 @@ pub mod res {
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Get<const PS: usize> {
-        pub payload: heapless::String<PS>
+        pub payload: heapless::String<PS>,
     }
 
     #[derive(Deserialize, defmt::Format, PartialEq, Debug)]
@@ -173,7 +175,7 @@ pub mod res {
         Error,
         Downloading,
         Ready,
-        Completed
+        Completed,
     }
 
     #[derive(Deserialize, defmt::Format)]
@@ -198,7 +200,7 @@ pub mod res {
         pub on: Option<bool>,
         pub off: Option<bool>,
         pub pending: Option<bool>,
-        pub body: Option<StatusBody>
+        pub body: Option<StatusBody>,
     }
 }
 
@@ -208,7 +210,9 @@ mod tests {
 
     #[test]
     fn test_get() {
-        let (res, _) = serde_json_core::from_str::<res::Get<32>>(r#"{"payload":"THISISALOTOFBINARYDATA="}"#).unwrap();
+        let (res, _) =
+            serde_json_core::from_str::<res::Get<32>>(r#"{"payload":"THISISALOTOFBINARYDATA="}"#)
+                .unwrap();
         assert_eq!(res.payload, r#"THISISALOTOFBINARYDATA="#);
     }
 
@@ -223,15 +227,7 @@ mod tests {
     #[test]
     fn test_status_req() {
         // Test basic request
-        let req = req::Status::new(
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None
-        );
+        let req = req::Status::new(None, None, None, None, None, None, None);
         let res: heapless::String<256> = serde_json_core::to_string(&req).unwrap();
         assert_eq!(res, r#"{"req":"dfu.status"}"#);
 
@@ -260,18 +256,13 @@ mod tests {
             Some("test error"),
         );
         let res: heapless::String<512> = serde_json_core::to_string(&req).unwrap();
-        assert_eq!(res, r#"{"req":"dfu.status","name":"user","stop":true,"status":"test status","version":"{\"org\":\"Organization\",\"product\":\"Product\",\"description\":\"Firmware Description\",\"firmware\":\"Firmware Name\",\"version\":\"Firmware Version 1.0.0\",\"ver_major\":1,\"ver_minor\":0,\"ver_patch\":0,\"ver_build\":12345,\"built\":\"Some Sunny Day In December\",\"builder\":\"The Compnay\"}","vvalue":"usb:1;high:1;normal:1;low:0;dead:0","on":true,"err":"test error"}"#);
+        assert_eq!(
+            res,
+            r#"{"req":"dfu.status","name":"user","stop":true,"status":"test status","version":"{\"org\":\"Organization\",\"product\":\"Product\",\"description\":\"Firmware Description\",\"firmware\":\"Firmware Name\",\"version\":\"Firmware Version 1.0.0\",\"ver_major\":1,\"ver_minor\":0,\"ver_patch\":0,\"ver_build\":12345,\"built\":\"Some Sunny Day In December\",\"builder\":\"The Compnay\"}","vvalue":"usb:1;high:1;normal:1;low:0;dead:0","on":true,"err":"test error"}"#
+        );
 
         // Test off set
-        let req = req::Status::new(
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(false),
-            None
-        );
+        let req = req::Status::new(None, None, None, None, None, Some(false), None);
         let res: heapless::String<256> = serde_json_core::to_string(&req).unwrap();
         assert_eq!(res, r#"{"req":"dfu.status","off":true}"#);
     }
@@ -290,7 +281,8 @@ mod tests {
 
     #[test]
     fn test_status() {
-        let (res, _) = serde_json_core::from_str::<res::Status>(r#"{
+        let (res, _) = serde_json_core::from_str::<res::Status>(
+            r#"{
             "mode": "ready",
             "status": "successfully downloaded",
             "on": true,
@@ -306,7 +298,9 @@ mod tests {
                 "source": "stm32-new-firmware.bin",
                 "type": "firmware"
             }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         assert_eq!(res.mode, res::StatusMode::Ready);
         assert_eq!(res.status.unwrap(), "successfully downloaded");
