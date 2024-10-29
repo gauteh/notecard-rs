@@ -4,6 +4,7 @@
 #![feature(type_changing_struct_update)]
 #![cfg_attr(not(test), no_std)]
 
+use core::convert::Infallible;
 use core::marker::PhantomData;
 
 #[allow(unused_imports)]
@@ -117,7 +118,7 @@ impl NoteError {
         NoteError::DeserError(s)
     }
 
-    pub fn string_err(_e: ()) -> NoteError {
+    pub fn string_err(_e: Infallible) -> NoteError {
         NoteError::BufOverflow
     }
 }
