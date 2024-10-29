@@ -6,7 +6,7 @@ use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use serde::{Deserialize, Serialize};
 
-use super::{FutureResponse, NoteError, Notecard};
+use super::{str_string, FutureResponse, NoteError, Notecard};
 
 pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
@@ -75,9 +75,9 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
             delay,
             req::LocationMode {
                 req: "card.location.mode",
-                mode: mode.map(heapless::String::from),
+                mode: str_string(mode)?,
                 seconds,
-                vseconds: vseconds.map(heapless::String::from),
+                vseconds: str_string(vseconds)?,
                 delete,
                 max,
                 lat,
@@ -108,7 +108,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
                 heartbeat: heartbeat.then(|| true),
                 sync: sync.then(|| true),
                 hours,
-                file: file.map(heapless::String::from),
+                file: str_string(file)?,
             },
         )?;
 
@@ -127,9 +127,9 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
             delay,
             req::Wireless {
                 req: "card.wireless",
-                mode: mode.map(heapless::String::from),
-                method: method.map(heapless::String::from),
-                apn: apn.map(heapless::String::from),
+                mode: str_string(mode)?,
+                method: str_string(method)?,
+                apn: str_string(apn)?,
                 hours,
             },
         )?;
@@ -159,7 +159,6 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         self.note.request(delay, req::DFU::new(name, on, stop))?;
         Ok(FutureResponse::from(self.note))
     }
-
 }
 
 pub mod req {
@@ -243,7 +242,7 @@ pub mod req {
         Stm32Bi,
         McuBoot,
         #[serde(rename = "-")]
-        Reset
+        Reset,
     }
 
     #[derive(Deserialize, Serialize, defmt::Format)]
@@ -267,11 +266,7 @@ pub mod req {
     }
 
     impl DFU {
-        pub fn new(
-            name: Option<req::DFUName>,
-            on: Option<bool>,
-            stop: Option<bool>,
-        ) -> Self {
+        pub fn new(name: Option<req::DFUName>, on: Option<bool>, stop: Option<bool>) -> Self {
             // The `on`/`off` and `stop`/`start` parameters are exclusive
             // When on is `true` we set `on` to `Some(True)` and `off` to `None`.
             // When on is `false` we set `on` to `None` and `off` to `Some(True)`.
@@ -567,7 +562,7 @@ mod tests {
     fn test_dfu_req() {
         // Test basic request
         let req = req::DFU::new(None, None, None);
-        let res: heapless::String<256> = serde_json_core::to_string(&req).unwrap();
+        let res: heapless::String<1024> = serde_json_core::to_string(&req).unwrap();
         assert_eq!(res, r#"{"req":"card.dfu"}"#);
 
         // Test name & on request

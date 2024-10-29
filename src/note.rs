@@ -6,7 +6,7 @@ use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::{FutureResponse, NoteError, Notecard};
+use super::{FutureResponse, NoteError, Notecard, str_string};
 
 pub struct Note<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
@@ -37,8 +37,8 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
             delay,
             req::Add::<T> {
                 req: "note.add",
-                file: file.map(heapless::String::from),
-                note: note.map(heapless::String::from),
+                file: str_string(file)?,
+                note: str_string(note)?,
                 body,
                 payload,
                 sync: Some(sync),
@@ -62,8 +62,8 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
             delay,
             req::Update::<T> {
                 req: "note.update",
-                file: heapless::String::from(file),
-                note: heapless::String::from(note),
+                file: heapless::String::try_from(file).map_err(NoteError::string_err)?,
+                note: heapless::String::try_from(note).map_err(NoteError::string_err)?,
                 body,
                 payload,
                 verify,
@@ -90,8 +90,8 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
             delay,
             req::Get {
                 req: "note.get",
-                file: heapless::String::from(file),
-                note: heapless::String::from(note),
+                file: heapless::String::try_from(file).map_err(NoteError::string_err)?,
+                note: heapless::String::try_from(note).map_err(NoteError::string_err)?,
                 delete,
                 deleted,
             },
@@ -110,8 +110,8 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
             delay,
             req::Delete {
                 req: "note.delete",
-                file: heapless::String::from(file),
-                note: heapless::String::from(note),
+                file: heapless::String::try_from(file).map_err(NoteError::string_err)?,
+                note: heapless::String::try_from(note).map_err(NoteError::string_err)?,
                 verify: false,
             },
         )?;
@@ -140,7 +140,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
             delay,
             req::Template::<T> {
                 req: "note.template",
-                file: file.map(heapless::String::from),
+                file: str_string(file)?,
                 body,
                 length,
             },

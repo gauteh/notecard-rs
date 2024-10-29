@@ -14,9 +14,10 @@ use heapless::{String, Vec};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub mod card;
+pub mod dfu;
 pub mod hub;
 pub mod note;
-pub mod dfu;
+pub mod web;
 
 /// Delay between polling for new response.
 const RESPONSE_DELAY: u16 = 25;
@@ -115,6 +116,18 @@ impl NoteError {
         s.push_str(msg).ok();
         NoteError::DeserError(s)
     }
+
+    pub fn string_err(_e: ()) -> NoteError {
+        NoteError::BufOverflow
+    }
+}
+
+pub(crate) fn str_string<const N: usize>(
+    a: Option<&str>,
+) -> Result<Option<heapless::String<N>>, NoteError> {
+    a.map(heapless::String::try_from)
+        .transpose()
+        .map_err(NoteError::string_err)
 }
 
 #[derive(Deserialize, defmt::Format)]
@@ -572,16 +585,18 @@ impl<
                     "response is error response, parsing error..: {}",
                     core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
                 );
-                Err(serde_json_core::from_slice::<NotecardError>(body).map_or_else(
-                    |_| {
-                        error!(
-                            "failed to deserialize: {}",
-                            core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
-                        );
-                        NoteError::new_desererror(&body)
-                    },
-                    |(e, _)| NoteError::from(e),
-                ))
+                Err(
+                    serde_json_core::from_slice::<NotecardError>(body).map_or_else(
+                        |_| {
+                            error!(
+                                "failed to deserialize: {}",
+                                core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
+                            );
+                            NoteError::new_desererror(&body)
+                        },
+                        |(e, _)| NoteError::from(e),
+                    ),
+                )
             }
             Some(body) => {
                 trace!("response is regular, parsing..");
