@@ -10,6 +10,8 @@ use super::{str_string, FutureResponse, NoteError, Notecard};
 
 pub enum TemplateFormat {
     Default,
+
+    /// Compact notes will also be transferred on StarNote and LoRa cards.
     Compact,
 }
 
