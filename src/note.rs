@@ -8,6 +8,11 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{str_string, FutureResponse, NoteError, Notecard};
 
+pub enum TemplateFormat {
+    Default,
+    Compact,
+}
+
 pub struct Note<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
 }
@@ -135,7 +140,21 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
         file: Option<&str>,
         body: Option<T>,
         length: Option<u32>,
+        format: TemplateFormat,
+        port: Option<u32>,
+        delete: Option<bool>,
     ) -> Result<FutureResponse<'a, res::Template, IOM, BS>, NoteError> {
+        if let Some(port) = port {
+            if port < 1 || port > 100 {
+                return Err(NoteError::InvalidRequest);
+            }
+        }
+
+        let format = match format {
+            TemplateFormat::Default => None,
+            TemplateFormat::Compact => Some("compact"),
+        };
+
         self.note.request(
             delay,
             req::Template::<T> {
@@ -143,6 +162,9 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
                 file: str_string(file)?,
                 body,
                 length,
+                format: str_string(format)?,
+                port,
+                delete,
             },
         )?;
         Ok(FutureResponse::from(self.note))
@@ -226,6 +248,15 @@ mod req {
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub length: Option<u32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub format: Option<heapless::String<20>>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub port: Option<u32>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub delete: Option<bool>,
     }
 }
 
