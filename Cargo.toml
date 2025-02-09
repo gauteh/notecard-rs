@@ -9,7 +9,7 @@ repository = "https://github.com/gauteh/notecard-rs"
 
 [dependencies]
 defmt = "0.3"
-embedded-hal = "1.0.0"
+embedded-hal-async = "1.0.0"
 heapless = { version = "0.7", features = [ "serde", "ufmt-impl", "defmt-impl" ] }
 serde = { version = "1", features = ["derive"], default-features = false }
 serde-json-core = "0.5.1"
@@ -17,7 +17,8 @@ serde-json-core = "0.5.1"
 [dev-dependencies]
 base64 = { version = "0.13.0", default-features = false }
 bytemuck = "1.7.2"
-embedded-hal-mock = "0.11"
+tokio = "1.43.0"
+embedded-hal-mock = { version = "0.11.1", features = [ "embedded-hal-async" ] }
 
 [features]
 default = [ ]

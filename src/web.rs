@@ -2,8 +2,8 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::delay::DelayNs;
-use embedded_hal::i2c::I2c;
+use embedded_hal_async::delay::DelayNs;
+use embedded_hal_async::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{str_string, FutureResponse, NoteError, Notecard};
@@ -18,7 +18,7 @@ impl<'a, IOM: I2c, const BS: usize> Web<'a, IOM, BS> {
     }
 
     /// Performs a simple HTTP or HTTPS POST request against an external endpoint, and returns the response to the Notecard.
-    pub fn post<T: Serialize + Default>(
+    pub async fn post<T: Serialize + Default>(
         self,
         delay: &mut impl DelayNs,
         route: &str,
@@ -46,7 +46,7 @@ impl<'a, IOM: I2c, const BS: usize> Web<'a, IOM, BS> {
                 nasync,
                 ..<req::Post<T> as Default>::default()
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 }

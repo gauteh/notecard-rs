@@ -9,8 +9,8 @@ use core::marker::PhantomData;
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::delay::DelayNs;
-use embedded_hal::i2c::I2c;
+use embedded_hal_async::delay::DelayNs;
+use embedded_hal_async::i2c::I2c;
 use heapless::{String, Vec};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -236,25 +236,26 @@ impl<IOM: I2c, const BUF_SIZE: usize>
     }
 
     /// Initialize the notecard driver by performing handshake with notecard.
-    pub fn initialize(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
+    pub async fn initialize(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         info!("note: initializing.");
-        self.reset(delay)
+        self.reset(delay).await
     }
 
     /// Check if notecarrier is connected and responding.
     ///
     /// > This is allowed no matter the state.
-    pub fn ping(&mut self) -> bool {
-        self.i2c.write(self.addr, &[]).is_ok()
+    pub async fn ping(&mut self) -> bool {
+        self.i2c.write(self.addr, &[]).await.is_ok()
     }
 
     /// Query the notecard for available bytes.
-    pub fn data_query(&mut self) -> Result<usize, NoteError> {
+    pub async fn data_query(&mut self) -> Result<usize, NoteError> {
         trace!("note: data_query: {:?}", self.state);
         if !matches!(self.state, NoteState::Response(_)) {
             // Ask for reading, but with zero bytes allocated.
             self.i2c
                 .write(self.addr, &[0, 0])
+                .await
                 .map_err(|_| NoteError::I2cWriteError)?;
 
             let mut buf = [0u8; 2];
@@ -262,6 +263,7 @@ impl<IOM: I2c, const BUF_SIZE: usize>
             // Read available bytes to read
             self.i2c
                 .read(self.addr, &mut buf)
+                .await
                 .map_err(|_| NoteError::I2cReadError)?;
 
             let available = buf[0] as usize;
@@ -290,7 +292,7 @@ impl<IOM: I2c, const BUF_SIZE: usize>
     }
 
     /// Read until empty.
-    fn read(&mut self) -> Result<usize, NoteError> {
+    async fn read(&mut self) -> Result<usize, NoteError> {
         if let NoteState::Response(avail) = self.state {
             // Chunk to read + notecard header (2 bytes)
             let mut bytes = Vec::<u8, 128>::new();
@@ -303,11 +305,13 @@ impl<IOM: I2c, const BUF_SIZE: usize>
             // Ask for reading `sz` bytes
             self.i2c
                 .write(self.addr, &[0, sz as u8])
+                .await
                 .map_err(|_| NoteError::I2cWriteError)?;
 
             // Read bytes
             self.i2c
                 .read(self.addr, &mut bytes)
+                .await
                 .map_err(|_| NoteError::I2cReadError)?;
 
             let available = bytes[0] as usize;
@@ -354,25 +358,25 @@ impl<IOM: I2c, const BUF_SIZE: usize>
     }
 
     /// Poll for data.
-    fn poll(&mut self) -> Result<Option<&[u8]>, NoteError> {
+    async fn poll(&mut self) -> Result<Option<&[u8]>, NoteError> {
         trace!("note: poll: {:?}", self.state);
         match self.state {
             NoteState::Poll(_) => {
                 // 1. Check for available data
-                let sz = self.data_query()?;
+                let sz = self.data_query().await?;
                 if sz > 0 {
                     debug!("response ready: {} bytes..", sz);
 
-                    self.poll()
+                    self.poll().await
                 } else {
                     // sleep and wait for ready.
                     Ok(None)
                 }
             }
             NoteState::Response(_) => {
-                let avail = self.read()?;
+                let avail = self.read().await?;
                 if avail == 0 {
-                    self.poll()
+                    self.poll().await
                 } else {
                     // sleep and wait for more data.
                     Ok(None)
@@ -391,17 +395,17 @@ impl<IOM: I2c, const BUF_SIZE: usize>
 
     /// Read any remaining data from the Notecarrier. This will cancel any waiting responses, and
     /// waiting for a response after this call will time-out.
-    unsafe fn consume_response(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
+    async unsafe fn consume_response(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         warn!("note: trying to consume any left-over response.");
         let mut waited = 0;
 
         while waited < self.response_timeout {
-            if matches!(self.poll()?, Some(_)) {
+            if matches!(self.poll().await?, Some(_)) {
                 self.buf.clear();
                 return Ok(());
             }
 
-            delay.delay_ms(RESPONSE_DELAY);
+            delay.delay_ms(RESPONSE_DELAY).await;
             waited += RESPONSE_DELAY;
         }
 
@@ -414,20 +418,20 @@ impl<IOM: I2c, const BUF_SIZE: usize>
     /// Reset notecard driver and state. Any waiting responses will be invalidated
     /// and time-out. However, you won't be able to get a mutable reference without having
     /// dropped the `FutureResponse`.
-    pub fn reset(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
+    pub async fn reset(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         warn!("resetting: consuming any left-over response and perform a new handshake.");
 
         self.buf.clear(); // clear in case data_query() is 0.
         self.state = NoteState::Handshake;
-        self.handshake(delay)
+        self.handshake(delay).await
     }
 
-    fn handshake(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
+    async fn handshake(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Handshake) {
             debug!("note: handshake");
-            if self.data_query()? > 0 {
+            if self.data_query().await? > 0 {
                 error!("note: handshake: remaining data in queue, consuming..");
-                unsafe { self.consume_response(delay)? };
+                unsafe { self.consume_response(delay).await? };
             }
 
             self.state = NoteState::Request;
@@ -436,7 +440,7 @@ impl<IOM: I2c, const BUF_SIZE: usize>
     }
 
     /// Sends request from buffer.
-    fn send_request(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
+    async fn send_request(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         // This is presumably limited by the notecard firmware.
         const CHUNK_LENGTH_MAX: usize = 127;
         // This is a limit that was required on some Arduinos. Can probably be increased up to
@@ -455,7 +459,7 @@ impl<IOM: I2c, const BUF_SIZE: usize>
 
         if !matches!(self.state, NoteState::Request) {
             warn!("note: request: wrong-state, resetting before new request.");
-            self.reset(delay)?;
+            self.reset(delay).await?;
         }
 
         if self.buf.last() != Some(&b'\n') {
@@ -478,12 +482,13 @@ impl<IOM: I2c, const BUF_SIZE: usize>
 
                 self.i2c
                     .write(self.addr, &buf)
+                    .await
                     .map_err(|_| NoteError::I2cWriteError)?;
 
                 buf.clear();
-                delay.delay_ms(self.chunk_delay);
+                delay.delay_ms(self.chunk_delay).await;
             }
-            delay.delay_ms(self.segment_delay);
+            delay.delay_ms(self.segment_delay).await;
         }
 
         self.state = NoteState::Poll(0);
@@ -493,7 +498,7 @@ impl<IOM: I2c, const BUF_SIZE: usize>
 
     /// Make a raw request. The byte slice must end with `\n`. After making a request a
     /// [FutureResponse] must be created and consumed.
-    pub(crate) fn request_raw(
+    pub(crate) async fn request_raw(
         &mut self,
         delay: &mut impl DelayNs,
         cmd: &[u8],
@@ -504,13 +509,13 @@ impl<IOM: I2c, const BUF_SIZE: usize>
             .map_err(|_| NoteError::BufOverflow)?;
         let buf: &mut [u8] = self.buf.as_mut();
         buf.copy_from_slice(cmd);
-        self.send_request(delay)
+        self.send_request(delay).await
     }
 
     /// Make a request. After making a request a [FutureResponse] must be created and consumed
     /// before making any new requests. This method is usually called through the API methods like
     /// `[card]`.
-    pub(crate) fn request<T: Serialize>(
+    pub(crate) async fn request<T: Serialize>(
         &mut self,
         delay: &mut impl DelayNs,
         cmd: T,
@@ -523,7 +528,7 @@ impl<IOM: I2c, const BUF_SIZE: usize>
 
         // Add new-line, this separator tells the Notecard that the request is done.
         self.buf.push(b'\n').map_err(|_| NoteError::SerError)?;
-        self.send_request(delay)
+        self.send_request(delay).await
     }
 
     /// [card Requests](https://dev.blues.io/reference/notecard-api/card-requests/)
@@ -584,8 +589,8 @@ impl<
     }
 
     /// Reads remaining data and returns the deserialized object if it is ready.
-    pub fn poll(&mut self) -> Result<Option<T>, NoteError> {
-        match self.note.poll()? {
+    pub async fn poll(&mut self) -> Result<Option<T>, NoteError> {
+        match self.note.poll().await? {
             Some(body) if body.starts_with(br##"{"err":"##) => {
                 debug!(
                     "response is error response, parsing error..: {}",
@@ -624,16 +629,16 @@ impl<
 
     /// Wait for response and return raw bytes. These may change on next response,
     /// so this method is probably not staying as it is.
-    pub fn wait_raw(mut self, delay: &mut impl DelayNs) -> Result<&'a [u8], NoteError> {
+    pub async fn wait_raw(mut self, delay: &mut impl DelayNs) -> Result<&'a [u8], NoteError> {
         let mut waited = 0;
 
         while waited < self.note.response_timeout {
-            match self.poll()? {
+            match self.poll().await? {
                 Some(_) => return Ok(self.note.take_response()?),
                 None => (),
             }
 
-            delay.delay_ms(RESPONSE_DELAY);
+            delay.delay_ms(RESPONSE_DELAY).await;
             waited += RESPONSE_DELAY;
         }
 
@@ -642,16 +647,16 @@ impl<
     }
 
     /// Wait for response and return deserialized object.
-    pub fn wait(mut self, delay: &mut impl DelayNs) -> Result<T, NoteError> {
+    pub async fn wait(mut self, delay: &mut impl DelayNs) -> Result<T, NoteError> {
         let mut waited = 0;
 
         while waited < self.note.response_timeout {
-            match self.poll()? {
+            match self.poll().await? {
                 Some(r) => return Ok(r),
                 None => (),
             }
 
-            delay.delay_ms(RESPONSE_DELAY);
+            delay.delay_ms(RESPONSE_DELAY).await;
             waited += RESPONSE_DELAY;
         }
 
@@ -663,11 +668,11 @@ impl<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use embedded_hal_mock::eh1::i2c::Mock;
+    use embedded_hal_mock::eh1::i2c::Mock as I2cMock;
 
-    pub fn new_mock() -> Notecard<Mock> {
+    pub fn new_mock() -> Notecard<I2cMock> {
         // let exp = [ Transaction::write(0x17, vec![]) ];
-        let i2c = Mock::new(&[]);
+        let i2c = I2cMock::new(&[]);
         Notecard::new(i2c)
     }
 
