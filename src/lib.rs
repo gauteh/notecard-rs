@@ -359,36 +359,37 @@ impl<IOM: I2c, const BUF_SIZE: usize>
 
     /// Poll for data.
     async fn poll(&mut self) -> Result<Option<&[u8]>, NoteError> {
-        trace!("note: poll: {:?}", self.state);
-        match self.state {
-            NoteState::Poll(_) => {
-                // 1. Check for available data
-                let sz = self.data_query().await?;
-                if sz > 0 {
-                    debug!("response ready: {} bytes..", sz);
-
-                    self.poll().await
-                } else {
-                    // sleep and wait for ready.
-                    Ok(None)
+        loop {
+            trace!("note: poll: {:?}", self.state);
+            match self.state {
+                NoteState::Poll(_) => {
+                    // 1. Check for available data
+                    let sz = self.data_query().await?;
+                    if sz > 0 {
+                        debug!("response ready: {} bytes..", sz);
+                        continue;
+                    } else {
+                        // sleep and wait for ready.
+                        break Ok(None)
+                    }
                 }
-            }
-            NoteState::Response(_) => {
-                let avail = self.read().await?;
-                if avail == 0 {
-                    self.poll().await
-                } else {
-                    // sleep and wait for more data.
-                    Ok(None)
+                NoteState::Response(_) => {
+                    let avail = self.read().await?;
+                    if avail == 0 {
+                        continue;
+                    } else {
+                        // sleep and wait for more data.
+                        break Ok(None)
+                    }
                 }
-            }
-            NoteState::ResponseReady => {
-                debug!("response read, deserializing.");
-                Ok(Some(self.take_response()?))
-            }
-            _ => {
-                error!("poll called when not receiving response");
-                Err(NoteError::WrongState)
+                NoteState::ResponseReady => {
+                    debug!("response read, deserializing.");
+                    break Ok(Some(self.take_response()?))
+                }
+                _ => {
+                    error!("poll called when not receiving response");
+                    break Err(NoteError::WrongState)
+                }
             }
         }
     }
