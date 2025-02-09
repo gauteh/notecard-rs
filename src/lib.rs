@@ -9,8 +9,8 @@ use core::marker::PhantomData;
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal::delay::DelayNs;
+use embedded_hal::i2c::I2c;
 use heapless::{String, Vec};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -21,7 +21,7 @@ pub mod note;
 pub mod web;
 
 /// Delay between polling for new response.
-const RESPONSE_DELAY: u16 = 25;
+const RESPONSE_DELAY: u32 = 25;
 
 /// The size of the shared request and receive buffer. Requests and responses may not serialize to
 /// any greater value than this.
@@ -33,7 +33,7 @@ pub struct NotecardConfig {
     pub i2c_addr: u8,
 
     /// Timeout while waiting for response (ms).
-    pub response_timeout: u16,
+    pub response_timeout: u32,
 
     /// Delay between chunks when transmitting (ms).
     ///
@@ -41,7 +41,7 @@ pub struct NotecardConfig {
     ///
     /// > `note-c`: https://github.com/blues/note-c/blob/master/n_lib.h#L52
     /// > Original: 20 ms
-    pub chunk_delay: u16,
+    pub chunk_delay: u32,
 
     /// Delay between segments when transmitting (ms).
     ///
@@ -50,7 +50,7 @@ pub struct NotecardConfig {
     ///
     /// > `note-c`: https://github.com/blues/note-c/blob/master/n_lib.h#L46
     /// > Original: 250 ms.
-    pub segment_delay: u16,
+    pub segment_delay: u32,
 }
 
 impl Default for NotecardConfig {
@@ -148,7 +148,7 @@ impl From<NotecardError> for NoteError {
 
 /// The driver for the Notecard. Must be intialized before making any requests.
 pub struct Notecard<
-    IOM: Write<SevenBitAddress> + Read<SevenBitAddress>,
+    IOM: I2c,
     const BUF_SIZE: usize = DEFAULT_BUF_SIZE,
 > {
     i2c: IOM,
@@ -158,21 +158,21 @@ pub struct Notecard<
     /// The receive buffer. Must be large enough to hold the largest response that will be received.
     buf: Vec<u8, BUF_SIZE>,
 
-    response_timeout: u16,
-    chunk_delay: u16,
-    segment_delay: u16,
+    response_timeout: u32,
+    chunk_delay: u32,
+    segment_delay: u32,
 }
 
 pub struct SuspendState<const BUF_SIZE: usize> {
     addr: u8,
     state: NoteState,
     buf: Vec<u8, BUF_SIZE>,
-    response_timeout: u16,
-    chunk_delay: u16,
-    segment_delay: u16,
+    response_timeout: u32,
+    chunk_delay: u32,
+    segment_delay: u32,
 }
 
-impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
+impl<IOM: I2c, const BUF_SIZE: usize>
     Notecard<IOM, BUF_SIZE>
 {
     pub fn new(i2c: IOM) -> Notecard<IOM, BUF_SIZE> {
@@ -236,7 +236,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     }
 
     /// Initialize the notecard driver by performing handshake with notecard.
-    pub fn initialize(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
+    pub fn initialize(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         info!("note: initializing.");
         self.reset(delay)
     }
@@ -391,7 +391,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
 
     /// Read any remaining data from the Notecarrier. This will cancel any waiting responses, and
     /// waiting for a response after this call will time-out.
-    unsafe fn consume_response(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
+    unsafe fn consume_response(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         warn!("note: trying to consume any left-over response.");
         let mut waited = 0;
 
@@ -414,7 +414,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     /// Reset notecard driver and state. Any waiting responses will be invalidated
     /// and time-out. However, you won't be able to get a mutable reference without having
     /// dropped the `FutureResponse`.
-    pub fn reset(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
+    pub fn reset(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         warn!("resetting: consuming any left-over response and perform a new handshake.");
 
         self.buf.clear(); // clear in case data_query() is 0.
@@ -422,7 +422,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         self.handshake(delay)
     }
 
-    fn handshake(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
+    fn handshake(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         if matches!(self.state, NoteState::Handshake) {
             debug!("note: handshake");
             if self.data_query()? > 0 {
@@ -436,7 +436,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     }
 
     /// Sends request from buffer.
-    fn send_request(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
+    fn send_request(&mut self, delay: &mut impl DelayNs) -> Result<(), NoteError> {
         // This is presumably limited by the notecard firmware.
         const CHUNK_LENGTH_MAX: usize = 127;
         // This is a limit that was required on some Arduinos. Can probably be increased up to
@@ -495,7 +495,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     /// [FutureResponse] must be created and consumed.
     pub(crate) fn request_raw(
         &mut self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         cmd: &[u8],
     ) -> Result<(), NoteError> {
         self.buf.clear();
@@ -512,7 +512,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     /// `[card]`.
     pub(crate) fn request<T: Serialize>(
         &mut self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         cmd: T,
     ) -> Result<(), NoteError> {
         self.buf.clear();
@@ -562,7 +562,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
 pub struct FutureResponse<
     'a,
     T: DeserializeOwned,
-    IOM: Write<SevenBitAddress> + Read<SevenBitAddress>,
+    IOM: I2c,
     const BUF_SIZE: usize,
 > {
     note: &'a mut Notecard<IOM, BUF_SIZE>,
@@ -572,7 +572,7 @@ pub struct FutureResponse<
 impl<
         'a,
         T: DeserializeOwned,
-        IOM: Write<SevenBitAddress> + Read<SevenBitAddress>,
+        IOM: I2c,
         const BUF_SIZE: usize,
     > FutureResponse<'a, T, IOM, BUF_SIZE>
 {
@@ -624,7 +624,7 @@ impl<
 
     /// Wait for response and return raw bytes. These may change on next response,
     /// so this method is probably not staying as it is.
-    pub fn wait_raw(mut self, delay: &mut impl DelayMs<u16>) -> Result<&'a [u8], NoteError> {
+    pub fn wait_raw(mut self, delay: &mut impl DelayNs) -> Result<&'a [u8], NoteError> {
         let mut waited = 0;
 
         while waited < self.note.response_timeout {
@@ -642,7 +642,7 @@ impl<
     }
 
     /// Wait for response and return deserialized object.
-    pub fn wait(mut self, delay: &mut impl DelayMs<u16>) -> Result<T, NoteError> {
+    pub fn wait(mut self, delay: &mut impl DelayNs) -> Result<T, NoteError> {
         let mut waited = 0;
 
         while waited < self.note.response_timeout {
@@ -663,7 +663,7 @@ impl<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use embedded_hal_mock::eh0::i2c::Mock;
+    use embedded_hal_mock::eh1::i2c::Mock;
 
     pub fn new_mock() -> Notecard<Mock> {
         // let exp = [ Transaction::write(0x17, vec![]) ];
