@@ -2,13 +2,13 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal::delay::DelayNs;
+use embedded_hal::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
 
-pub struct NTN<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+pub struct NTN<'a, IOM: I2c, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
 }
 
@@ -21,7 +21,7 @@ pub enum NtnSetGps {
     Starnote,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> NTN<'a, IOM, BS> {
+impl<'a, IOM: I2c, const BS: usize> NTN<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> NTN<'_, IOM, BS> {
         NTN { note }
     }
@@ -29,7 +29,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
     /// Once a Notecard is connected to a Starnote device, the presence of a physical Starnote is stored in a permanent configuration that is not affected by a card.restore request. This request clears this configuration and allows you to return to testing NTN mode over cellular or Wi-Fi.
     pub fn reset<const PS: usize>(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"ntn.reset\"}\n")?;
         Ok(FutureResponse::from(self.note))
@@ -39,7 +39,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
     /// firmware updates.
     pub fn status(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Status, IOM, BS>, NoteError> {
         self.note
             .request_raw(delay, b"{\"req\":\"ntn.status\"}\n")?;
@@ -50,7 +50,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
     /// Determines whether a Notecard should override a paired Starnote's GPS/GNSS location with its own GPS/GNSS location. The paired Starnote uses its own GPS/GNSS location by default.
     pub fn gps(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         gps: Option<NtnSetGps>,
     ) -> Result<FutureResponse<'a, res::Gps, IOM, BS>, NoteError> {
         self.note.request(
