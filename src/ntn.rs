@@ -2,8 +2,8 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::delay::DelayNs;
-use embedded_hal::i2c::I2c;
+use embedded_hal_async::delay::DelayNs;
+use embedded_hal_async::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
@@ -27,28 +27,28 @@ impl<'a, IOM: I2c, const BS: usize> NTN<'a, IOM, BS> {
     }
 
     /// Once a Notecard is connected to a Starnote device, the presence of a physical Starnote is stored in a permanent configuration that is not affected by a card.restore request. This request clears this configuration and allows you to return to testing NTN mode over cellular or Wi-Fi.
-    pub fn reset<const PS: usize>(
+    pub async fn reset<const PS: usize>(
         self,
         delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
-        self.note.request_raw(delay, b"{\"req\":\"ntn.reset\"}\n")?;
+        self.note.request_raw(delay, b"{\"req\":\"ntn.reset\"}\n").await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Gets and sets the background download status of MCU host or Notecard
     /// firmware updates.
-    pub fn status(
+    pub async fn status(
         self,
         delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Status, IOM, BS>, NoteError> {
         self.note
-            .request_raw(delay, b"{\"req\":\"ntn.status\"}\n")?;
+            .request_raw(delay, b"{\"req\":\"ntn.status\"}\n").await?;
 
         Ok(FutureResponse::from(self.note))
     }
 
     /// Determines whether a Notecard should override a paired Starnote's GPS/GNSS location with its own GPS/GNSS location. The paired Starnote uses its own GPS/GNSS location by default.
-    pub fn gps(
+    pub async fn gps(
         self,
         delay: &mut impl DelayNs,
         gps: Option<NtnSetGps>,
@@ -60,7 +60,7 @@ impl<'a, IOM: I2c, const BS: usize> NTN<'a, IOM, BS> {
                 on: gps.map(|g| matches!(g, NtnSetGps::Notecard)),
                 off: gps.map(|g| matches!(g, NtnSetGps::Starnote)),
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 }

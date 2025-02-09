@@ -2,8 +2,8 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::delay::DelayNs;
-use embedded_hal::i2c::I2c;
+use embedded_hal_async::delay::DelayNs;
+use embedded_hal_async::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
@@ -18,7 +18,7 @@ impl<'a, IOM: I2c, const BS: usize> Hub<'a, IOM, BS> {
     }
 
     /// Add a "device health" log message to send to Notehub on the next sync.
-    pub fn log(
+    pub async fn log(
         self,
         delay: &mut impl DelayNs,
         text: &str,
@@ -33,23 +33,23 @@ impl<'a, IOM: I2c, const BS: usize> Hub<'a, IOM, BS> {
                 alert,
                 sync,
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// The [hub.get](https://dev.blues.io/api-reference/notecard-api/hub-requests/#hub-get) request
     /// retrieves the current Notehub configuration for the Natecard.
-    pub fn get(
+    pub async fn get(
         self,
         delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Hub, IOM, BS>, NoteError> {
-        self.note.request_raw(delay, b"{\"req\":\"hub.get\"}\n")?;
+        self.note.request_raw(delay, b"{\"req\":\"hub.get\"}\n").await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// The [hub.set](https://dev.blues.io/reference/notecard-api/hub-requests/#hub-set) request is
     /// the primary method for controlling the Notecard's Notehub connection and sync behavior.
-    pub fn set(
+    pub async fn set(
         self,
         delay: &mut impl DelayNs,
         product: Option<&str>,
@@ -80,13 +80,13 @@ impl<'a, IOM: I2c, const BS: usize> Hub<'a, IOM, BS> {
                 align,
                 sync,
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Manually initiates a sync with Notehub. `allow` can be specified to `true` to
     /// remove the notecard from any penalty boxes.
-    pub fn sync(
+    pub async fn sync(
         self,
         delay: &mut impl DelayNs,
         allow: bool,
@@ -101,18 +101,18 @@ impl<'a, IOM: I2c, const BS: usize> Hub<'a, IOM, BS> {
                 out,
                 inn,
             },
-        )?;
+        ).await?;
 
         Ok(FutureResponse::from(self.note))
     }
 
     /// Check on the status of a recently triggered or previous sync.
-    pub fn sync_status(
+    pub async fn sync_status(
         self,
         delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::SyncStatus, IOM, BS>, NoteError> {
         self.note
-            .request_raw(delay, b"{\"req\":\"hub.sync.status\"}\n")?;
+            .request_raw(delay, b"{\"req\":\"hub.sync.status\"}\n").await?;
         Ok(FutureResponse::from(self.note))
     }
 }
