@@ -2,17 +2,17 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal::delay::DelayNs;
+use embedded_hal::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{str_string, FutureResponse, NoteError, Notecard};
 
-pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+pub struct Card<'a, IOM: I2c, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Card<'a, IOM, BS> {
+impl<'a, IOM: I2c, const BS: usize> Card<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> Card<'_, IOM, BS> {
         Card { note }
     }
@@ -22,7 +22,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// this request will return `{"zone":"UTC,Unknown"}`.
     pub fn time(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Time, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"card.time\"}\n")?;
         Ok(FutureResponse::from(self.note))
@@ -31,7 +31,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// Returns general information about the Notecard's operating status.
     pub fn status(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Status, IOM, BS>, NoteError> {
         self.note
             .request_raw(delay, b"{\"req\":\"card.status\"}\n")?;
@@ -41,7 +41,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// Performs a firmware restart of the Notecard.
     pub fn restart(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note
             .request_raw(delay, b"{\"req\":\"card.restart\"}\n")?;
@@ -51,7 +51,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// Retrieves the current location of the Notecard.
     pub fn location(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Location, IOM, BS>, NoteError> {
         self.note
             .request_raw(delay, b"{\"req\":\"card.location\"}\n")?;
@@ -61,7 +61,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// Sets location-related configuration settings. Retrieves the current location mode when passed with no argument.
     pub fn location_mode(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         mode: Option<&str>,
         seconds: Option<u32>,
         vseconds: Option<&str>,
@@ -92,7 +92,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// Only available when `card.location.mode` has been set to `periodic`.
     pub fn location_track(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         start: bool,
         heartbeat: bool,
         sync: bool,
@@ -117,7 +117,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
 
     pub fn wireless(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         mode: Option<&str>,
         apn: Option<&str>,
         method: Option<&str>,
@@ -140,7 +140,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// Returns firmware version information for the Notecard.
     pub fn version(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Version, IOM, BS>, NoteError> {
         self.note
             .request_raw(delay, b"{\"req\":\"card.version\"}\n")?;
@@ -151,7 +151,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// Added in v3.5.1 Notecard Firmware.
     pub fn dfu(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         name: Option<req::DFUName>,
         on: Option<bool>,
         stop: Option<bool>,
