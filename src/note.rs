@@ -147,7 +147,7 @@ impl<'a, IOM: I2c, const BS: usize> Note<'a, IOM, BS> {
         delete: Option<bool>,
     ) -> Result<FutureResponse<'a, res::Template, IOM, BS>, NoteError> {
         if let Some(port) = port {
-            if port < 1 || port > 100 {
+            if !(1..=100).contains(&port) {
                 return Err(NoteError::InvalidRequest);
             }
         }
