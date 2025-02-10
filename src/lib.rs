@@ -48,7 +48,7 @@ pub struct NotecardConfig {
     /// Delay between segments when transmitting (ms).
     ///
     /// > These delay may be almost eliminated for Notecard firmware version 3.4 (and presumably
-    /// above).
+    /// > above).
     ///
     /// > `note-c`: https://github.com/blues/note-c/blob/master/n_lib.h#L46
     /// > Original: 250 ms.
@@ -117,7 +117,7 @@ pub enum NoteError {
 
 impl NoteError {
     pub fn new_desererror(msg: &[u8]) -> NoteError {
-        let msg = core::str::from_utf8(&msg).unwrap_or("[invalid utf-8]");
+        let msg = core::str::from_utf8(msg).unwrap_or("[invalid utf-8]");
         let mut s = String::new();
         s.push_str(msg).ok();
         NoteError::DeserError(s)
@@ -403,7 +403,7 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         let mut waited = 0;
 
         while waited < self.response_timeout {
-            if matches!(self.poll()?, Some(_)) {
+            if (self.poll()?).is_some() {
                 self.buf.clear();
                 return Ok(());
             }
@@ -610,16 +610,16 @@ impl<
             Some(body) if body.starts_with(br##"{"err":"##) => {
                 debug!(
                     "response is error response, parsing error..: {}",
-                    core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
+                    core::str::from_utf8(body).unwrap_or("[invalid utf-8]")
                 );
                 Err(
                     serde_json_core::from_slice::<NotecardError>(body).map_or_else(
                         |_| {
                             error!(
                                 "failed to deserialize: {}",
-                                core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
+                                core::str::from_utf8(body).unwrap_or("[invalid utf-8]")
                             );
-                            NoteError::new_desererror(&body)
+                            NoteError::new_desererror(body)
                         },
                         |(e, _)| NoteError::from(e),
                     ),
@@ -632,9 +632,9 @@ impl<
                         .map_err(|_| {
                             error!(
                                 "failed to deserialize: {}",
-                                core::str::from_utf8(&body).unwrap_or("[invalid utf-8]")
+                                core::str::from_utf8(body).unwrap_or("[invalid utf-8]")
                             );
-                            NoteError::new_desererror(&body)
+                            NoteError::new_desererror(body)
                         })?
                         .0,
                 ))
@@ -649,9 +649,8 @@ impl<
         let mut waited = 0;
 
         while waited < self.note.response_timeout {
-            match self.poll()? {
-                Some(_) => return Ok(self.note.take_response()?),
-                None => (),
+            if self.poll()?.is_some() {
+                return self.note.take_response()
             }
 
             delay.delay_ms(RESPONSE_DELAY);
@@ -667,9 +666,8 @@ impl<
         let mut waited = 0;
 
         while waited < self.note.response_timeout {
-            match self.poll()? {
-                Some(r) => return Ok(r),
-                None => (),
+            if let Some(r) = self.poll()? {
+                return Ok(r)
             }
 
             delay.delay_ms(RESPONSE_DELAY);

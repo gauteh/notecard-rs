@@ -44,7 +44,6 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> W
                 max,
                 verify,
                 nasync,
-                ..<req::Post<T> as Default>::default()
             },
         )?;
         Ok(FutureResponse::from(self.note))

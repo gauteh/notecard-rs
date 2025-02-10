@@ -99,7 +99,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
                 req: "hub.sync",
                 allow: if allow { Some(true) } else { None },
                 out,
-                inn: inn,
+                inn,
             },
         )?;
 
