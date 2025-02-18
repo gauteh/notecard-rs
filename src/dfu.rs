@@ -2,17 +2,17 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal_async::delay::DelayNs;
+use embedded_hal_async::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
 
-pub struct DFU<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+pub struct DFU<'a, IOM: I2c, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> DFU<'a, IOM, BS> {
+impl<'a, IOM: I2c, const BS: usize> DFU<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> DFU<'_, IOM, BS> {
         DFU { note }
     }
@@ -20,9 +20,9 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> D
     /// Retrieves downloaded firmware data from the Notecard.
     /// Note: this request is functional only when the Notecard has been set to
     /// dfu mode with a `hub.set`, `mode:dfu` request.
-    pub fn get<const PS: usize>(
+    pub async fn get<const PS: usize>(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         length: usize,
         offset: Option<usize>,
     ) -> Result<FutureResponse<'a, res::Get<PS>, IOM, BS>, NoteError> {
@@ -33,16 +33,16 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> D
                 length,
                 offset,
             },
-        )?;
+        ).await?;
 
         Ok(FutureResponse::from(self.note))
     }
 
     /// Gets and sets the background download status of MCU host or Notecard
     /// firmware updates.
-    pub fn status(
+    pub async fn status(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         name: Option<req::StatusName>,
         stop: Option<bool>,
         status: Option<&str>,
@@ -54,7 +54,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> D
         self.note.request(
             delay,
             req::Status::new(name, stop, status, version, vvalue, on, err),
-        )?;
+        ).await?;
 
         Ok(FutureResponse::from(self.note))
     }

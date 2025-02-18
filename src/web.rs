@@ -2,25 +2,25 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal_async::delay::DelayNs;
+use embedded_hal_async::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{str_string, FutureResponse, NoteError, Notecard};
 
-pub struct Web<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+pub struct Web<'a, IOM: I2c, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Web<'a, IOM, BS> {
+impl<'a, IOM: I2c, const BS: usize> Web<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> Web<'_, IOM, BS> {
         Web { note }
     }
 
     /// Performs a simple HTTP or HTTPS POST request against an external endpoint, and returns the response to the Notecard.
-    pub fn post<T: Serialize + Default>(
+    pub async fn post<T: Serialize + Default>(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         route: &str,
         name: Option<&str>,
         body: Option<T>,
@@ -46,7 +46,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> W
                 nasync,
                 ..<req::Post<T> as Default>::default()
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 }

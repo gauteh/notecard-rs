@@ -2,8 +2,8 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal_async::delay::DelayNs;
+use embedded_hal_async::i2c::I2c;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{str_string, FutureResponse, NoteError, Notecard};
@@ -15,11 +15,11 @@ pub enum TemplateFormat {
     Compact,
 }
 
-pub struct Note<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+pub struct Note<'a, IOM: I2c, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Note<'a, IOM, BS> {
+impl<'a, IOM: I2c, const BS: usize> Note<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> Note<'_, IOM, BS> {
         Note { note }
     }
@@ -31,9 +31,9 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
     ///
     /// If you don't use a template the size of the payload is maximum 250 bytes, with a template 8KB
     /// seems to work.
-    pub fn add<T: Serialize + Default>(
+    pub async fn add<T: Serialize + Default>(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         file: Option<&str>,
         note: Option<&str>,
         body: Option<T>,
@@ -51,14 +51,14 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
                 sync: Some(sync),
                 ..<req::Add<T> as Default>::default()
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Updates a Note in a DB Notefile by its ID, replacing the existing body and/or payload.
-    pub fn update<T: Serialize + Default>(
+    pub async fn update<T: Serialize + Default>(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         file: &str,
         note: &str,
         body: Option<T>,
@@ -75,7 +75,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
                 payload,
                 verify,
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 
@@ -85,9 +85,9 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
     /// * When sending this request to Notehub, the file must be a DB Notefile (.db).
     ///
     /// .qo/.qos Notes must be read from the Notehub event table using the Notehub Event API.
-    pub fn get<T: DeserializeOwned + Serialize>(
+    pub async fn get<T: DeserializeOwned + Serialize>(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         file: &str,
         note: &str,
         delete: bool,
@@ -102,14 +102,14 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
                 delete,
                 deleted,
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Deletes Notefiles from a DB Notefile by its Note ID. To delete Notes from a .qi Notefile, use note.get or note.changes with delete:true.
-    pub fn delete(
+    pub async fn delete(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         file: &str,
         note: &str,
     ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
@@ -121,7 +121,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
                 note: heapless::String::try_from(note).map_err(NoteError::string_err)?,
                 verify: false,
             },
-        )?;
+        ).await?;
 
         Ok(FutureResponse::from(self.note))
     }
@@ -136,9 +136,9 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
     /// See
     /// https://dev.blues.io/notecard/notecard-walkthrough/low-bandwidth-design/#understanding-template-data-types
     /// for the format and values of the template.
-    pub fn template<T: Serialize + Default>(
+    pub async fn template<T: Serialize + Default>(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         file: Option<&str>,
         body: Option<T>,
         length: Option<u32>,
@@ -147,7 +147,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
         delete: Option<bool>,
     ) -> Result<FutureResponse<'a, res::Template, IOM, BS>, NoteError> {
         if let Some(port) = port {
-            if port < 1 || port > 100 {
+            if !(1..=100).contains(&port) {
                 return Err(NoteError::InvalidRequest);
             }
         }
@@ -168,7 +168,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
                 port,
                 delete,
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 }

@@ -2,17 +2,17 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal_async::delay::DelayNs;
+use embedded_hal_async::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{str_string, FutureResponse, NoteError, Notecard};
 
-pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+pub struct Card<'a, IOM: I2c, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Card<'a, IOM, BS> {
+impl<'a, IOM: I2c, const BS: usize> Card<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> Card<'_, IOM, BS> {
         Card { note }
     }
@@ -20,48 +20,48 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
     /// Retrieves current date and time information. Upon power-up, the Notecard must complete a
     /// sync to Notehub in order to obtain time and location data. Before the time is obtained,
     /// this request will return `{"zone":"UTC,Unknown"}`.
-    pub fn time(
+    pub async fn time(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Time, IOM, BS>, NoteError> {
-        self.note.request_raw(delay, b"{\"req\":\"card.time\"}\n")?;
+        self.note.request_raw(delay, b"{\"req\":\"card.time\"}\n").await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Returns general information about the Notecard's operating status.
-    pub fn status(
+    pub async fn status(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Status, IOM, BS>, NoteError> {
         self.note
-            .request_raw(delay, b"{\"req\":\"card.status\"}\n")?;
+            .request_raw(delay, b"{\"req\":\"card.status\"}\n").await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Performs a firmware restart of the Notecard.
-    pub fn restart(
+    pub async fn restart(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note
-            .request_raw(delay, b"{\"req\":\"card.restart\"}\n")?;
+            .request_raw(delay, b"{\"req\":\"card.restart\"}\n").await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Retrieves the current location of the Notecard.
-    pub fn location(
+    pub async fn location(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Location, IOM, BS>, NoteError> {
         self.note
-            .request_raw(delay, b"{\"req\":\"card.location\"}\n")?;
+            .request_raw(delay, b"{\"req\":\"card.location\"}\n").await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Sets location-related configuration settings. Retrieves the current location mode when passed with no argument.
-    pub fn location_mode(
+    pub async fn location_mode(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         mode: Option<&str>,
         seconds: Option<u32>,
         vseconds: Option<&str>,
@@ -84,15 +84,15 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
                 lon,
                 minutes,
             },
-        )?;
+        ).await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Store location data in a Notefile at the `periodic` interval, or using specified `heartbeat`.
     /// Only available when `card.location.mode` has been set to `periodic`.
-    pub fn location_track(
+    pub async fn location_track(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         start: bool,
         heartbeat: bool,
         sync: bool,
@@ -103,21 +103,21 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
             delay,
             req::LocationTrack {
                 req: "card.location.track",
-                start: start.then(|| true),
-                stop: (!start).then(|| true),
-                heartbeat: heartbeat.then(|| true),
-                sync: sync.then(|| true),
+                start: start.then_some(true),
+                stop: (!start).then_some(true),
+                heartbeat: heartbeat.then_some(true),
+                sync: sync.then_some(true),
                 hours,
                 file: str_string(file)?,
             },
-        )?;
+        ).await?;
 
         Ok(FutureResponse::from(self.note))
     }
 
-    pub fn wireless(
+    pub async fn wireless(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         mode: Option<&str>,
         apn: Option<&str>,
         method: Option<&str>,
@@ -132,31 +132,31 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
                 apn: str_string(apn)?,
                 hours,
             },
-        )?;
+        ).await?;
 
         Ok(FutureResponse::from(self.note))
     }
 
     /// Returns firmware version information for the Notecard.
-    pub fn version(
+    pub async fn version(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Version, IOM, BS>, NoteError> {
         self.note
-            .request_raw(delay, b"{\"req\":\"card.version\"}\n")?;
+            .request_raw(delay, b"{\"req\":\"card.version\"}\n").await?;
         Ok(FutureResponse::from(self.note))
     }
 
     /// Configure Notecard Outboard Firmware Update feature
     /// Added in v3.5.1 Notecard Firmware.
-    pub fn dfu(
+    pub async fn dfu(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         name: Option<req::DFUName>,
         on: Option<bool>,
         stop: Option<bool>,
     ) -> Result<FutureResponse<'a, res::DFU, IOM, BS>, NoteError> {
-        self.note.request(delay, req::DFU::new(name, on, stop))?;
+        self.note.request(delay, req::DFU::new(name, on, stop)).await?;
         Ok(FutureResponse::from(self.note))
     }
 }
