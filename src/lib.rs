@@ -107,6 +107,12 @@ pub enum NoteError {
     /// Notecard firmware is being updated.
     DFUInProgress,
 
+    /// Notecard filesystem full
+    FileStorageFull(String<256>),
+
+    /// Error Adding Note
+    ErrorAddingNote(String<256>),
+
     NotecardErr(String<256>),
 }
 
@@ -140,6 +146,10 @@ impl From<NotecardError> for NoteError {
     fn from(n: NotecardError) -> NoteError {
         if n.err.contains("{dfu-in-progress}") {
             NoteError::DFUInProgress
+        } else if n.err.contains("{file-storage-full}") {
+            NoteError::FileStorageFull(n.err)
+        } else if n.err.contains("error adding note") {
+            NoteError::ErrorAddingNote(n.err)
         } else {
             NoteError::NotecardErr(n.err)
         }
