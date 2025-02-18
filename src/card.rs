@@ -382,6 +382,7 @@ pub mod res {
         pub ver_patch: u8,
         pub ver_build: u32,
         pub built: heapless::String<24>,
+        pub target: Option<heapless::String<5>>,
     }
 
     #[derive(Deserialize, defmt::Format)]
@@ -389,10 +390,13 @@ pub mod res {
         pub body: VersionInner,
         pub version: heapless::String<24>,
         pub device: heapless::String<24>,
-        pub name: heapless::String<24>,
+        pub name: heapless::String<30>,
         pub board: heapless::String<24>,
         pub sku: heapless::String<24>,
-        pub api: u16,
+        pub api: Option<u16>,
+        pub cell: Option<bool>,
+        pub gps: Option<bool>,
+        pub ordering_code: Option<heapless::String<50>>,
     }
 
     #[derive(Deserialize, defmt::Format)]
@@ -432,6 +436,12 @@ mod tests {
     #[test]
     fn test_version_411() {
         let r = br##"{"version":"notecard-4.1.1.4015681","device":"dev:000000000000000","name":"Blues Wireless Notecard","sku":"NOTE-WBEX-500","board":"1.11","api":4,"body":{"org":"Blues Wireless","product":"Notecard","version":"notecard-4.1.1","ver_major":4,"ver_minor":1,"ver_patch":1,"ver_build":4015681,"built":"Dec  5 2022 12:54:58"}}"##;
+        serde_json_core::from_slice::<res::Version>(r).unwrap();
+    }
+
+    #[test]
+    fn test_version_752() {
+        let r = br##"{"version":"notecard-7.5.2.17004","device":"dev:861059067974133","name":"Blues Wireless Notecard","sku":"NOTE-NBGLN","ordering_code":"EB0WT1N0AXBA","board":"5.13","cell":true,"gps":true,"body":{"org":"Blues Wireless","product":"Notecard","target":"u5","version":"notecard-u5-7.5.2","ver_major":7,"ver_minor":5,"ver_patch":2,"ver_build":17004,"built":"Nov 26 2024 14:01:26"}}"##;
         serde_json_core::from_slice::<res::Version>(r).unwrap();
     }
 
