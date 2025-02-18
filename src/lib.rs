@@ -112,6 +112,12 @@ pub enum NoteError {
     /// Notecard is in NTN mode and regular packages can't be added.
     NonPortNoteInPackageMode,
 
+    /// Notecard filesystem full
+    FileStorageFull(String<256>),
+
+    /// Error Adding Note
+    ErrorAddingNote(String<256>),
+
     NotecardErr(String<256>),
 }
 
@@ -147,6 +153,10 @@ impl From<NotecardError> for NoteError {
             NoteError::DFUInProgress
         } else if n.err.contains("adding notes to a non-uplinked port is not allowed") {
             NoteError::NonPortNoteInPackageMode
+        } else if n.err.contains("{file-storage-full}") {
+            NoteError::FileStorageFull(n.err)
+        } else if n.err.contains("error adding note") {
+            NoteError::ErrorAddingNote(n.err)
         } else {
             NoteError::NotecardErr(n.err)
         }
