@@ -434,9 +434,6 @@ impl<IOM: I2c, const BUF_SIZE: usize>
 
         self.buf.clear(); // clear in case data_query() is 0.
         self.state = NoteState::Handshake;
-        // Try to finalize any pending communication
-        self.i2c.write(self.addr, &[b'\n']).await
-            .map_err(|_| NoteError::I2cWriteError)?;
         self.handshake(delay).await
     }
 
