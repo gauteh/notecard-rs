@@ -586,13 +586,22 @@ mod tests {
   "sku":     "NOTE-WBNA500",
   "api":     1
 }"##;
-        serde_json_core::from_slice::<res::Version>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Version>(d).unwrap();
     }
 
     #[test]
     fn test_version_411() {
         let r = br##"{"version":"notecard-4.1.1.4015681","device":"dev:000000000000000","name":"Blues Wireless Notecard","sku":"NOTE-WBEX-500","board":"1.11","api":4,"body":{"org":"Blues Wireless","product":"Notecard","version":"notecard-4.1.1","ver_major":4,"ver_minor":1,"ver_patch":1,"ver_build":4015681,"built":"Dec  5 2022 12:54:58"}}"##;
-        serde_json_core::from_slice::<res::Version>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Version>(d).unwrap();
+    }
+
+    #[test]
+    fn test_version_813() {
+        let r = br##"{"version":"notecard-8.1.3.17044","device":"dev:000000000000000","name":"Blues Wireless Notecard","sku":"NOTE-WBNAN","ordering_code":"EA0WT1N0AXBB","board":"5.13","cell":true,"gps":true,"body":{"org":"Blues Wireless","product":"Notecard","target":"u5","version":"notecard-u5-8.1.3","ver_major":8,"ver_minor":1,"ver_patch":3,"ver_build":17044,"built":"Dec 20 2024 08:45:13"}}"##;
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Version>(d).unwrap();
     }
 
     #[test]
@@ -604,20 +613,25 @@ mod tests {
     #[test]
     fn test_card_wireless() {
         let r = br##"{"status":"{modem-on}","count":3,"net":{"iccid":"89011703278520607527","imsi":"310170852060752","imei":"864475044204278","modem":"BG95M3LAR02A03_01.006.01.006","band":"GSM 900","rat":"gsm","rssir":-77,"rssi":-77,"bars":3,"mcc":242,"mnc":1,"lac":11001,"cid":12313,"updated":1643923524}}"##;
-        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Wireless>(d).unwrap();
 
         let r = br##"{"status":"{cell-registration-wait}","net":{"iccid":"89011703278520606586","imsi":"310170852060658","imei":"864475044197092","modem":"BG95M3LAR02A03_01.006.01.006"}}"##;
-        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Wireless>(d).unwrap();
 
         let r = br##"{"status":"{modem-off}","net":{}}"##;
-        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Wireless>(d).unwrap();
 
         let r = br##"{"status":"{network-up}","mode":"auto","count":3,"net":{"iccid":"89011703278520578660","imsi":"310170852057866","imei":"867730051260788","modem":"BG95M3LAR02A03_01.006.01.006","band":"GSM 900","rat":"gsm","rssir":-77,"rssi":-78,"bars":3,"mcc":242,"mnc":1,"lac":11,"cid":12286,"updated":1646227929}}"##;
-        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
-
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Wireless>(d).unwrap();
+    
         // NTN
         let r = br##"{"mode":"auto","count":2,"net":{"iccid":"89011704278930030582","imsi":"310170893003058","imei":"860264054655247","modem":"EG91EXGAR08A05M1G_01.001.01.001","band":"LTE BAND 20","rat":"lte","ratr":"\"LTE\"","internal":true,"rssir":-59,"rssi":-60,"rsrp":-92,"sinr":15,"rsrq":-9,"bars":2,"mcc":242,"mnc":2,"lac":2501,"cid":35398693,"modem_temp":34,"updated":1746004605}}"##;
-        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Wireless>(d).unwrap();
     }
 
     #[test]
@@ -634,7 +648,8 @@ mod tests {
         }
         "##;
 
-        serde_json_core::from_slice::<res::Time>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Time>(d).unwrap();
     }
 
     #[test]
@@ -651,18 +666,20 @@ mod tests {
         }
         "##;
 
-        serde_json_core::from_slice::<res::Time>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Time>(d).unwrap();
     }
 
     #[test]
     fn test_card_time_err() {
         let r = br##"{"err":"time is not yet set","zone":"UTC,Unknown"}"##;
-        serde_json_core::from_slice::<NotecardError>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, NotecardError>(d).unwrap();
     }
 
     #[test]
     pub fn test_status_ok() {
-        serde_json_core::from_str::<res::Status>(
+        let d = &mut serde_json::Deserializer::from_str(
             r#"
           {
             "status":    "{normal}",
@@ -671,27 +688,29 @@ mod tests {
             "time":      1599684765,
             "connected": true
           }"#,
-        )
-        .unwrap();
+        );
+        serde_path_to_error::deserialize::<_, res::Status>(d).unwrap();
     }
 
     #[test]
     pub fn test_status_mising() {
-        serde_json_core::from_str::<res::Status>(
+        let d = &mut serde_json::Deserializer::from_str(
             r#"
           {
             "status":    "{normal}",
             "usb":       true,
             "storage":   8
           }"#,
-        )
-        .unwrap();
+        );
+
+        serde_path_to_error::deserialize::<_, res::Status>(d).unwrap();
     }
 
     #[test]
     fn test_partial_location_mode() {
-        serde_json_core::from_str::<res::LocationMode>(r#"{"seconds":60,"mode":"periodic"}"#)
-            .unwrap();
+        let d = &mut serde_json::Deserializer::from_str(r#"{"seconds":60,"mode":"periodic"}"#);
+
+        serde_path_to_error::deserialize::<_, res::LocationMode>(d).unwrap();
     }
 
     #[test]
