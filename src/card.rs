@@ -526,6 +526,7 @@ pub mod res {
     pub struct VersionInner {
         pub org: heapless::String<24>,
         pub product: heapless::String<24>,
+        pub target: Option<heapless::String<24>>,
         pub version: heapless::String<24>,
         pub ver_major: u8,
         pub ver_minor: u8,
@@ -544,6 +545,7 @@ pub mod res {
         pub board: heapless::String<24>,
         pub sku: heapless::String<24>,
         pub api: Option<u16>,
+        pub wifi: Option<bool>,
         pub cell: Option<bool>,
         pub gps: Option<bool>,
         pub ordering_code: Option<heapless::String<50>>,
