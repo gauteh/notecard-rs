@@ -376,6 +376,7 @@ pub mod res {
     pub struct VersionInner {
         pub org: heapless::String<24>,
         pub product: heapless::String<24>,
+        pub target: Option<heapless::String<24>>,
         pub version: heapless::String<24>,
         pub ver_major: u8,
         pub ver_minor: u8,
@@ -392,7 +393,11 @@ pub mod res {
         pub name: heapless::String<24>,
         pub board: heapless::String<24>,
         pub sku: heapless::String<24>,
-        pub api: u16,
+        pub ordering_code: Option<heapless::String<24>>,
+        pub api: Option<u16>,
+        pub wifi: Option<bool>,
+        pub cell: Option<bool>,
+        pub gps: Option<bool>,
     }
 
     #[derive(Deserialize, defmt::Format)]
