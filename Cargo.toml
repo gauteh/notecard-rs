@@ -19,6 +19,8 @@ base64 = { version = "0.13.0", default-features = false }
 bytemuck = "1.7.2"
 embedded-hal-mock = "0.10.0"
 defmt = { version = "1.0", features = [ "unstable-test" ] }
+serde_path_to_error = "0.1.16"
+serde_json = "1.0.138"
 
 [features]
 default = [ ]

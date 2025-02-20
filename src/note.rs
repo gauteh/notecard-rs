@@ -303,7 +303,8 @@ mod tests {
     #[test]
     fn add_with_template() {
         let r = br##"{"template":true}"##;
-        serde_json_core::from_slice::<res::Add>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Add>(d).unwrap();
     }
 
     #[test]
@@ -321,7 +322,8 @@ mod tests {
         }
 
         let r = br##"{"note":"storage-info","body":{"last_id":19999}}"##;
-        let si = serde_json_core::from_slice::<res::Get<StorageIdInfo>>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        let si = serde_path_to_error::deserialize::<_, res::Get<StorageIdInfo>>(d).unwrap();
 
         println!("{:?}", si);
     }

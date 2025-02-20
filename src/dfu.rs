@@ -210,9 +210,8 @@ mod tests {
 
     #[test]
     fn test_get() {
-        let (res, _) =
-            serde_json_core::from_str::<res::Get<32>>(r#"{"payload":"THISISALOTOFBINARYDATA="}"#)
-                .unwrap();
+        let d = &mut serde_json::Deserializer::from_str(r#"{"payload":"THISISALOTOFBINARYDATA="}"#);
+        let res = serde_path_to_error::deserialize::<_, res::Get<32>>(d).unwrap();
         assert_eq!(res.payload, r#"THISISALOTOFBINARYDATA="#);
     }
 
@@ -281,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_status() {
-        let (res, _) = serde_json_core::from_str::<res::Status>(
+        let d = &mut serde_json::Deserializer::from_str(
             r#"{
             "mode": "ready",
             "status": "successfully downloaded",
@@ -299,8 +298,8 @@ mod tests {
                 "type": "firmware"
             }
         }"#,
-        )
-        .unwrap();
+        );
+        let res = serde_path_to_error::deserialize::<_, res::Status>(d).unwrap();
 
         assert_eq!(res.mode, res::StatusMode::Ready);
         assert_eq!(res.status.unwrap(), "successfully downloaded");

@@ -240,7 +240,8 @@ mod tests {
     "host": "a.notefile.net",
     "sn": "test-serial"
 }"##;
-        serde_json_core::from_slice::<res::Hub>(r).unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(r);
+        serde_path_to_error::deserialize::<_, res::Hub>(d).unwrap();
     }
 
     #[test]
