@@ -2,17 +2,17 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal::delay::DelayNs;
+use embedded_hal::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
 
-pub struct DFU<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+pub struct DFU<'a, IOM: I2c, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> DFU<'a, IOM, BS> {
+impl<'a, IOM: I2c, const BS: usize> DFU<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> DFU<'_, IOM, BS> {
         DFU { note }
     }
@@ -22,7 +22,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> D
     /// dfu mode with a `hub.set`, `mode:dfu` request.
     pub fn get<const PS: usize>(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         length: usize,
         offset: Option<usize>,
     ) -> Result<FutureResponse<'a, res::Get<PS>, IOM, BS>, NoteError> {
@@ -42,7 +42,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> D
     /// firmware updates.
     pub fn status(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         name: Option<req::StatusName>,
         stop: Option<bool>,
         status: Option<&str>,
