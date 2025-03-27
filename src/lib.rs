@@ -9,6 +9,7 @@ use core::marker::PhantomData;
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
+
 use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
 use heapless::{String, Vec};
@@ -502,8 +503,8 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         self.buf
             .resize(cmd.len(), 0)
             .map_err(|_| NoteError::BufOverflow)?;
-        let buf: &mut [u8] = self.buf.as_mut();
-        buf.copy_from_slice(cmd);
+        // let buf: &mut [u8] = self.buf.as_mut();
+        self.buf.copy_from_slice(cmd);
         self.send_request(delay)
     }
 
@@ -663,7 +664,8 @@ impl<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use embedded_hal_mock::eh0::i2c::Mock;
+    use embedded_hal_mock::eh0::delay::StdSleep;
+    use embedded_hal_mock::eh0::i2c::{Mock, Transaction};
 
     pub fn new_mock() -> Notecard<Mock> {
         // let exp = [ Transaction::write(0x17, vec![]) ];
@@ -678,6 +680,22 @@ mod tests {
 
         let mut c = c.resize_buf::<1024>().unwrap();
         assert_eq!(c.buf.capacity(), 1024);
+
+        c.i2c.done();
+    }
+
+    #[test]
+    fn raw_request() {
+        let exp = [
+            Transaction::write(0x17, vec![0, 0]),
+            Transaction::read(0x17, vec![0, 0]),
+            Transaction::write(0x17, b"{\"req\":\"card.location\"}\n".to_vec()),
+        ];
+        let i2c = Mock::new(&exp);
+        let mut c: Notecard<Mock> = Notecard::new(i2c);
+        let mut delay = StdSleep::new();
+        c.request_raw(&mut delay, b"{\"req\":\"card.location\"}\n")
+            .unwrap();
 
         c.i2c.done();
     }
