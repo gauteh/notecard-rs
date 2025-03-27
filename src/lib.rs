@@ -456,7 +456,15 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
 
         if !matches!(self.state, NoteState::Request) {
             warn!("note: request: wrong-state, resetting before new request.");
-            self.reset(delay)?;
+            let buf = self.buf.clone();
+
+            self.reset(delay)?; // this clears the buffer - and may use it for other stuff!
+
+            self.buf.clear();
+            self.buf
+                .resize(buf.len(), 0)
+                .map_err(|_| NoteError::BufOverflow)?;
+            self.buf.copy_from_slice(&buf);
         }
 
         if self.buf.last() != Some(&b'\n') {
@@ -503,8 +511,9 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         self.buf
             .resize(cmd.len(), 0)
             .map_err(|_| NoteError::BufOverflow)?;
-        // let buf: &mut [u8] = self.buf.as_mut();
+
         self.buf.copy_from_slice(cmd);
+
         self.send_request(delay)
     }
 
@@ -686,10 +695,12 @@ mod tests {
 
     #[test]
     fn raw_request() {
+        let mut expect = b"{\"req\":\"card.location\"}\n".to_vec();
+        expect.insert(0, 24);
         let exp = [
             Transaction::write(0x17, vec![0, 0]),
             Transaction::read(0x17, vec![0, 0]),
-            Transaction::write(0x17, b"{\"req\":\"card.location\"}\n".to_vec()),
+            Transaction::write(0x17, expect),
         ];
         let i2c = Mock::new(&exp);
         let mut c: Notecard<Mock> = Notecard::new(i2c);
