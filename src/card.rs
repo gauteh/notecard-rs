@@ -12,6 +12,35 @@ pub struct Card<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const B
     note: &'a mut Notecard<IOM, BS>,
 }
 
+/// https://dev.blues.io/api-reference/notecard-api/card-requests/latest/#card-transport
+pub enum Transport {
+    Reset,
+    WifiCell,
+    Wifi,
+    Cell,
+    NTN,
+    WifiNTN,
+    CellNTN,
+    WifiCellNTN,
+}
+
+impl Transport {
+    pub fn str(&self) -> &'static str {
+        use Transport::*;
+
+        match self {
+            Reset => "-",
+            WifiCell => "wifi-cell",
+            Wifi => "wifi",
+            Cell => "cell",
+            NTN => "ntn",
+            WifiNTN => "wifi-ntn",
+            CellNTN => "cell-ntn",
+            WifiCellNTN => "wifi-cell-ntn",
+        }
+    }
+}
+
 impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Card<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> Card<'_, IOM, BS> {
         Card { note }
@@ -159,10 +188,42 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         self.note.request(delay, req::DFU::new(name, on, stop))?;
         Ok(FutureResponse::from(self.note))
     }
+
+    pub fn transport(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        method: Transport,
+        allow: Option<bool>,
+        umin: Option<bool>,
+    ) -> Result<FutureResponse<'a, res::Transport, IOM, BS>, NoteError> {
+        self.note.request(
+            delay,
+            req::Transport {
+                req: "card.transport",
+                method: method.str(),
+                allow,
+                umin,
+            },
+        )?;
+        Ok(FutureResponse::from(self.note))
+    }
 }
 
 pub mod req {
     use super::*;
+
+    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    pub struct Transport {
+        pub req: &'static str,
+
+        pub method: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub allow: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub umin: Option<bool>,
+    }
 
     #[derive(Deserialize, Serialize, defmt::Format, Default)]
     pub struct Wireless {
@@ -402,6 +463,11 @@ pub mod res {
     #[derive(Deserialize, defmt::Format)]
     pub struct DFU {
         pub name: req::DFUName,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct Transport {
+        pub method: heapless::String<120>,
     }
 }
 
