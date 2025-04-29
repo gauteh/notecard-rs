@@ -90,12 +90,16 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
         self,
         delay: &mut impl DelayMs<u16>,
         allow: bool,
+        out: Option<bool>,
+        inn: Option<bool>,
     ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
         self.note.request(
             delay,
             req::HubSync {
                 req: "hub.sync",
                 allow: if allow { Some(true) } else { None },
+                out,
+                inn: inn,
             },
         )?;
 
@@ -122,6 +126,12 @@ pub mod req {
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub allow: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub out: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none", rename = "in")]
+        pub inn: Option<bool>,
     }
 
     #[derive(Deserialize, Serialize, defmt::Format)]
