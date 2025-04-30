@@ -412,6 +412,8 @@ pub mod res {
         modem: Option<heapless::String<35>>,
         band: Option<heapless::String<24>>,
         rat: Option<heapless::String<24>>,
+        ratr: Option<heapless::String<24>>,
+        internal: Option<bool>,
         rssir: Option<i32>,
         rssi: Option<i32>,
         rsrp: Option<i32>,
@@ -422,12 +424,13 @@ pub mod res {
         mnc: Option<i32>,
         lac: Option<i32>,
         cid: Option<i32>,
+        modem_temp: Option<i32>,
         updated: Option<u32>,
     }
 
     #[derive(Deserialize, defmt::Format)]
     pub struct Wireless {
-        pub status: heapless::String<24>,
+        pub status: Option<heapless::String<24>>,
         pub mode: Option<heapless::String<24>>,
         pub count: Option<u8>,
         pub net: Option<WirelessNet>,
@@ -523,6 +526,10 @@ mod tests {
         serde_json_core::from_slice::<res::Wireless>(r).unwrap();
 
         let r = br##"{"status":"{network-up}","mode":"auto","count":3,"net":{"iccid":"89011703278520578660","imsi":"310170852057866","imei":"867730051260788","modem":"BG95M3LAR02A03_01.006.01.006","band":"GSM 900","rat":"gsm","rssir":-77,"rssi":-78,"bars":3,"mcc":242,"mnc":1,"lac":11,"cid":12286,"updated":1646227929}}"##;
+        serde_json_core::from_slice::<res::Wireless>(r).unwrap();
+
+        // NTN
+        let r = br##"{"mode":"auto","count":2,"net":{"iccid":"89011704278930030582","imsi":"310170893003058","imei":"860264054655247","modem":"EG91EXGAR08A05M1G_01.001.01.001","band":"LTE BAND 20","rat":"lte","ratr":"\"LTE\"","internal":true,"rssir":-59,"rssi":-60,"rsrp":-92,"sinr":15,"rsrq":-9,"bars":2,"mcc":242,"mnc":2,"lac":2501,"cid":35398693,"modem_temp":34,"updated":1746004605}}"##;
         serde_json_core::from_slice::<res::Wireless>(r).unwrap();
     }
 
