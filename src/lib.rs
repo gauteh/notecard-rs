@@ -109,6 +109,9 @@ pub enum NoteError {
     /// Notecard firmware is being updated.
     DFUInProgress,
 
+    /// Notecard is in NTN mode and regular packages can't be added.
+    NonPortNoteInPackageMode,
+
     NotecardErr(String<256>),
 }
 
@@ -142,6 +145,8 @@ impl From<NotecardError> for NoteError {
     fn from(n: NotecardError) -> NoteError {
         if n.err.contains("{dfu-in-progress}") {
             NoteError::DFUInProgress
+        } else if n.err.contains("adding notes to a non-uplinked port is not allowed") {
+            NoteError::NonPortNoteInPackageMode
         } else {
             NoteError::NotecardErr(n.err)
         }
