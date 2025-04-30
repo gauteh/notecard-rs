@@ -20,6 +20,7 @@ pub mod dfu;
 pub mod hub;
 pub mod note;
 pub mod web;
+pub mod ntn;
 
 /// Delay between polling for new response.
 const RESPONSE_DELAY: u16 = 25;
@@ -559,6 +560,11 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     /// [dfu Requests](https://dev.blues.io/api-reference/notecard-api/dfu-requests/)
     pub fn dfu(&mut self) -> dfu::DFU<IOM, BUF_SIZE> {
         dfu::DFU::from(self)
+    }
+
+    /// [NtN Requests](https://dev.blues.io/reference/notecard-api/ntn-requests/)
+    pub fn ntn(&mut self) -> ntn::NTN<IOM, BUF_SIZE> {
+        ntn::NTN::from(self)
     }
 }
 
