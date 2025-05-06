@@ -195,6 +195,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         method: Transport,
         allow: Option<bool>,
         umin: Option<bool>,
+        seconds: Option<u32>,
     ) -> Result<FutureResponse<'a, res::Transport, IOM, BS>, NoteError> {
         self.note.request(
             delay,
@@ -203,6 +204,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
                 method: method.str(),
                 allow,
                 umin,
+                seconds,
             },
         )?;
         Ok(FutureResponse::from(self.note))
@@ -223,6 +225,11 @@ pub mod req {
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub umin: Option<bool>,
+
+        /// Fallback time to cellular (default 3600 seconds, 60 minutes).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub seconds: Option<u32>,
+
     }
 
     #[derive(Deserialize, Serialize, defmt::Format, Default)]
