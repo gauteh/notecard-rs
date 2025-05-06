@@ -12,6 +12,15 @@ pub struct NTN<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS
     note: &'a mut Notecard<IOM, BS>,
 }
 
+#[derive(Clone, Copy, defmt::Format)]
+pub enum NtnSetGps {
+    /// Use notecard gps on starnote as well
+    Notecard,
+
+    /// Use starnotes own gps (default).
+    Starnote,
+}
+
 impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> NTN<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> NTN<'_, IOM, BS> {
         NTN { note }
@@ -22,8 +31,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
         self,
         delay: &mut impl DelayMs<u16>,
     ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
-        self.note
-            .request_raw(delay, b"{\"req\":\"ntn.reset\"}\n")?;
+        self.note.request_raw(delay, b"{\"req\":\"ntn.reset\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
 
@@ -38,10 +46,38 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
 
         Ok(FutureResponse::from(self.note))
     }
+
+    /// Determines whether a Notecard should override a paired Starnote's GPS/GNSS location with its own GPS/GNSS location. The paired Starnote uses its own GPS/GNSS location by default.
+    pub fn gps(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        gps: Option<NtnSetGps>,
+    ) -> Result<FutureResponse<'a, res::Gps, IOM, BS>, NoteError> {
+        self.note.request(
+            delay,
+            req::Gps {
+                req: "ntn.gps",
+                on: gps.map(|g| matches!(g, NtnSetGps::Notecard)),
+                off: gps.map(|g| matches!(g, NtnSetGps::Starnote)),
+            },
+        )?;
+        Ok(FutureResponse::from(self.note))
+    }
 }
 
 pub mod req {
     use super::*;
+
+    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    pub struct Gps {
+        pub req: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub on: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub off: Option<bool>,
+    }
 }
 
 pub mod res {
@@ -50,6 +86,15 @@ pub mod res {
     #[derive(Deserialize, defmt::Format)]
     pub struct Empty {}
 
+    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    pub struct Gps {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub on: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub off: Option<bool>,
+    }
+
     #[derive(Deserialize, defmt::Format)]
     pub struct Status {
         pub err: Option<heapless::String<120>>,
@@ -57,8 +102,7 @@ pub mod res {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-}
-
+// #[cfg(test)]
+// mod tests {
+//  use super::*;
+// }
