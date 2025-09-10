@@ -41,6 +41,28 @@ impl Transport {
     }
 }
 
+/// See https://dev.blues.io/api-reference/notecard-api/card-requests/latest/#card-aux for
+/// details.
+pub enum GpioMode {
+    Off,
+    Low,
+    High,
+    Input,
+}
+
+impl GpioMode {
+    pub fn str(&self) -> &'static str {
+        use GpioMode::*;
+
+        match self {
+            Off => "off",
+            Low => "low",
+            High => "high",
+            Input => "input",
+        }
+    }
+}
+
 impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Card<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> Card<'_, IOM, BS> {
         Card { note }
@@ -209,10 +231,50 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         )?;
         Ok(FutureResponse::from(self.note))
     }
+
+    /// Turn AUX pins off.
+    ///
+    /// https://dev.blues.io/api-reference/notecard-api/card-requests/latest/#card-aux
+    pub fn aux_off(
+        self,
+        delay: &mut impl DelayMs<u16>,
+    ) -> Result<FutureResponse<'a, res::Aux, IOM, BS>, NoteError> {
+        self.note.request_raw(delay, b"{\"req\":\"card.aux\", \"mode\":\"off\"}\n")?;
+        Ok(FutureResponse::from(self.note))
+    }
+
+    /// Configure AUX ports to act as GPIOs.
+    ///
+    /// https://dev.blues.io/api-reference/notecard-api/card-requests/latest/#card-aux
+    pub fn aux_gpio(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        aux1: GpioMode,
+        aux2: GpioMode,
+        aux3: GpioMode,
+        aux4: GpioMode,
+    ) -> Result<FutureResponse<'a, res::Aux, IOM, BS>, NoteError> {
+        self.note.request(
+            delay,
+            req::Aux {
+                req: "card.aux",
+                mode: "gpio",
+                usage: [aux1.str(), aux2.str(), aux3.str(), aux4.str()],
+            },
+        )?;
+        Ok(FutureResponse::from(self.note))
+    }
 }
 
 pub mod req {
     use super::*;
+
+    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    pub struct Aux {
+        pub req: &'static str,
+        pub mode: &'static str,
+        pub usage: [&'static str; 4],
+    }
 
     #[derive(Deserialize, Serialize, defmt::Format, Default)]
     pub struct Transport {
@@ -229,7 +291,6 @@ pub mod req {
         /// Fallback time to cellular (default 3600 seconds, 60 minutes).
         #[serde(skip_serializing_if = "Option::is_none")]
         pub seconds: Option<u32>,
-
     }
 
     #[derive(Deserialize, Serialize, defmt::Format, Default)]
@@ -366,6 +427,23 @@ pub mod res {
         pub seconds: Option<u32>,
         pub hours: Option<i32>,
         pub file: Option<heapless::String<20>>,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct Aux {
+        pub mode: Option<heapless::String<20>>,
+        pub power: Option<bool>,
+        pub seconds: Option<u32>,
+        pub time: Option<u32>,
+        pub state: Option<[GpioState; 4]>,
+    }
+
+    #[derive(Deserialize, defmt::Format)]
+    pub struct GpioState {
+        pub low: Option<bool>,
+        pub high: Option<bool>,
+        pub input: Option<bool>,
+        pub count: Option<heapless::Vec<u32, 128>>,
     }
 
     #[derive(Deserialize, defmt::Format)]
@@ -679,5 +757,31 @@ mod tests {
     #[test]
     fn test_dfu_res() {
         serde_json_core::from_str::<res::DFU>(r#"{"name": "stm32"}"#).unwrap();
+    }
+
+    #[test]
+    fn test_parse_aux_gpio_state() {
+        serde_json_core::from_str::<res::Aux>(
+            r#"{
+  "mode": "gpio",
+  "state": [
+    {},
+    {
+      "low": true
+    },
+    {
+      "high": true
+    },
+    {
+      "count": [
+        3
+      ]
+    }
+  ],
+  "time": 1592587637,
+  "seconds": 2
+}"#,
+        )
+        .unwrap();
     }
 }
