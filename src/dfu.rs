@@ -63,7 +63,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> D
 pub mod req {
     use super::*;
 
-    #[derive(Serialize, Deserialize, defmt::Format, Default)]
+    #[derive(Serialize, Deserialize, Debug, defmt::Format, Default)]
     pub struct Get {
         pub req: &'static str,
 
@@ -73,14 +73,14 @@ pub mod req {
         pub offset: Option<usize>,
     }
 
-    #[derive(Serialize, Deserialize, defmt::Format, PartialEq, Debug)]
+    #[derive(Serialize, Deserialize, Debug, defmt::Format, PartialEq)]
     #[serde(rename_all = "lowercase")]
     pub enum StatusName {
         User,
         Card,
     }
 
-    #[derive(Serialize, Deserialize, defmt::Format)]
+    #[derive(Serialize, Deserialize, Debug, defmt::Format)]
     pub struct Version<'a> {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub org: Option<&'a str>,
@@ -102,7 +102,7 @@ pub mod req {
         pub builder: Option<&'a str>,
     }
 
-    #[derive(Serialize, Deserialize, defmt::Format, Default)]
+    #[derive(Serialize, Deserialize, Debug, defmt::Format, Default)]
     pub struct Status<'a> {
         pub req: &'static str,
 
@@ -163,7 +163,7 @@ pub mod req {
 pub mod res {
     use super::*;
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Get<const PS: usize> {
         pub payload: heapless::String<PS>,
     }
@@ -178,7 +178,7 @@ pub mod res {
         Completed,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct StatusBody {
         pub crc32: Option<u32>,
         pub created: Option<u32>,
@@ -193,7 +193,7 @@ pub mod res {
         pub bin_type: Option<heapless::String<120>>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Status {
         pub mode: StatusMode,
         pub status: Option<heapless::String<120>>,

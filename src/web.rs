@@ -54,7 +54,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> W
 mod req {
     use super::*;
 
-    #[derive(Deserialize, Serialize, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Post<'a, T: Serialize + Default> {
         pub req: &'static str,
 
@@ -89,7 +89,7 @@ mod req {
 pub mod res {
     use super::*;
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Post {
         result: Option<u32>,
         // body: Option<&'a str>,

@@ -68,7 +68,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
 pub mod req {
     use super::*;
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Gps {
         pub req: &'static str,
 
@@ -83,10 +83,10 @@ pub mod req {
 pub mod res {
     use super::*;
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Empty {}
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Gps {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub on: Option<bool>,
@@ -95,7 +95,7 @@ pub mod res {
         pub off: Option<bool>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Status {
         pub err: Option<heapless::String<120>>,
         pub status: Option<heapless::String<120>>,

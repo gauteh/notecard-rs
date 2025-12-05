@@ -136,7 +136,7 @@ pub(crate) fn str_string<const N: usize>(
         .map_err(NoteError::string_err)
 }
 
-#[derive(Deserialize, defmt::Format)]
+#[derive(Deserialize, Debug, defmt::Format)]
 pub struct NotecardError {
     err: String<256>,
 }

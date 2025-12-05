@@ -176,7 +176,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
 mod req {
     use super::*;
 
-    #[derive(Deserialize, Serialize, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Add<'a, T: Serialize + Default> {
         pub req: &'static str,
 
@@ -202,7 +202,7 @@ mod req {
         pub verify: Option<bool>,
     }
 
-    #[derive(Deserialize, Serialize, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Update<'a, T: Serialize + Default> {
         pub req: &'static str,
 
@@ -218,7 +218,7 @@ mod req {
         pub verify: bool,
     }
 
-    #[derive(Deserialize, Serialize, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Delete {
         pub req: &'static str,
 
@@ -227,7 +227,7 @@ mod req {
         pub verify: bool,
     }
 
-    #[derive(Deserialize, Serialize, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Get {
         pub req: &'static str,
 
@@ -238,7 +238,7 @@ mod req {
         pub deleted: bool,
     }
 
-    #[derive(Deserialize, Serialize, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Template<T: Serialize + Default> {
         pub req: &'static str,
 
@@ -265,10 +265,10 @@ mod req {
 pub mod res {
     use super::*;
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Empty {}
 
-    #[derive(Debug, Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Get<T: Serialize> {
         pub note: heapless::String<32>,
 
@@ -282,13 +282,13 @@ pub mod res {
         pub time: Option<u32>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Add {
         total: Option<u32>,
         template: Option<bool>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Template {
         pub bytes: u32,
 

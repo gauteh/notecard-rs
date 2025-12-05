@@ -267,16 +267,17 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
 }
 
 pub mod req {
+
     use super::*;
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Aux {
         pub req: &'static str,
         pub mode: &'static str,
         pub usage: [&'static str; 4],
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Transport {
         pub req: &'static str,
 
@@ -293,7 +294,7 @@ pub mod req {
         pub seconds: Option<u32>,
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Wireless {
         pub req: &'static str,
 
@@ -310,7 +311,7 @@ pub mod req {
         pub hours: Option<u32>,
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct LocationTrack {
         pub req: &'static str,
 
@@ -333,7 +334,7 @@ pub mod req {
         pub file: Option<heapless::String<20>>,
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct LocationMode {
         pub req: &'static str,
 
@@ -362,7 +363,7 @@ pub mod req {
         pub minutes: Option<u32>,
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format, PartialEq, Debug)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, PartialEq)]
     #[serde(rename_all = "lowercase")]
     pub enum DFUName {
         Esp32,
@@ -374,7 +375,7 @@ pub mod req {
         Reset,
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format)]
     pub struct DFU {
         pub req: &'static str,
 
@@ -416,10 +417,10 @@ pub mod req {
 pub mod res {
     use super::*;
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Empty {}
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct LocationTrack {
         pub start: Option<bool>,
         pub stop: Option<bool>,
@@ -429,7 +430,7 @@ pub mod res {
         pub file: Option<heapless::String<20>>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Aux {
         pub mode: Option<heapless::String<20>>,
         pub power: Option<bool>,
@@ -438,7 +439,7 @@ pub mod res {
         pub state: Option<[GpioState; 4]>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct GpioState {
         pub low: Option<bool>,
         pub high: Option<bool>,
@@ -446,7 +447,7 @@ pub mod res {
         pub count: Option<heapless::Vec<u32, 128>>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct LocationMode {
         pub mode: heapless::String<60>,
         pub seconds: Option<u32>,
@@ -457,7 +458,7 @@ pub mod res {
         pub minutes: Option<u32>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Location {
         pub status: heapless::String<120>,
         pub mode: heapless::String<120>,
@@ -467,7 +468,7 @@ pub mod res {
         pub max: Option<u32>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Time {
         pub time: Option<u32>,
         pub area: Option<heapless::String<120>>,
@@ -478,7 +479,7 @@ pub mod res {
         pub country: Option<heapless::String<120>>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Status {
         pub status: heapless::String<40>,
         #[serde(default)]
@@ -489,7 +490,7 @@ pub mod res {
         pub connected: bool,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct WirelessNet {
         iccid: Option<heapless::String<24>>,
         imsi: Option<heapless::String<24>>,
@@ -513,7 +514,7 @@ pub mod res {
         updated: Option<u32>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Wireless {
         pub status: Option<heapless::String<24>>,
         pub mode: Option<heapless::String<24>>,
@@ -521,7 +522,7 @@ pub mod res {
         pub net: Option<WirelessNet>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct VersionInner {
         pub org: heapless::String<24>,
         pub product: heapless::String<24>,
@@ -534,7 +535,7 @@ pub mod res {
         pub target: Option<heapless::String<5>>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Version {
         pub body: VersionInner,
         pub version: heapless::String<24>,
@@ -548,12 +549,12 @@ pub mod res {
         pub ordering_code: Option<heapless::String<50>>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct DFU {
         pub name: req::DFUName,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Transport {
         pub method: heapless::String<120>,
     }

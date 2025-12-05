@@ -120,7 +120,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
 pub mod req {
     use super::*;
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct HubSync {
         pub req: &'static str,
 
@@ -134,7 +134,7 @@ pub mod req {
         pub inn: Option<bool>,
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format)]
     #[serde(rename_all = "lowercase")]
     pub enum HubMode {
         Periodic,
@@ -144,7 +144,7 @@ pub mod req {
         DFU,
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct HubSet<'a> {
         pub req: &'static str,
 
@@ -181,7 +181,7 @@ pub mod req {
         pub sync: Option<bool>,
     }
 
-    #[derive(Deserialize, Serialize, defmt::Format, Default)]
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct HubLog<'a> {
         pub req: &'static str,
         pub text: &'a str,
@@ -193,10 +193,10 @@ pub mod req {
 pub mod res {
     use super::*;
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Empty {}
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Hub {
         pub device: Option<heapless::String<40>>,
         pub product: Option<heapless::String<120>>,
@@ -210,7 +210,7 @@ pub mod res {
         pub sync: Option<bool>,
     }
 
-    #[derive(Deserialize, defmt::Format)]
+    #[derive(Deserialize, Debug, defmt::Format)]
     pub struct SyncStatus {
         pub status: Option<heapless::String<1024>>,
         pub time: Option<u32>,
