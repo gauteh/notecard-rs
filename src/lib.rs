@@ -543,32 +543,32 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     }
 
     /// [card Requests](https://dev.blues.io/reference/notecard-api/card-requests/)
-    pub fn card(&mut self) -> card::Card<IOM, BUF_SIZE> {
+    pub fn card(&mut self) -> card::Card<'_, IOM, BUF_SIZE> {
         card::Card::from(self)
     }
 
     /// [note Requests](https://dev.blues.io/reference/notecard-api/note-requests/)
-    pub fn note(&mut self) -> note::Note<IOM, BUF_SIZE> {
+    pub fn note(&mut self) -> note::Note<'_, IOM, BUF_SIZE> {
         note::Note::from(self)
     }
 
     /// [web Requests](https://dev.blues.io/reference/notecard-api/web-requests/)
-    pub fn web(&mut self) -> web::Web<IOM, BUF_SIZE> {
+    pub fn web(&mut self) -> web::Web<'_, IOM, BUF_SIZE> {
         web::Web::from(self)
     }
 
     /// [hub Requests](https://dev.blues.io/reference/notecard-api/hub-requests/)
-    pub fn hub(&mut self) -> hub::Hub<IOM, BUF_SIZE> {
+    pub fn hub(&mut self) -> hub::Hub<'_, IOM, BUF_SIZE> {
         hub::Hub::from(self)
     }
 
     /// [dfu Requests](https://dev.blues.io/api-reference/notecard-api/dfu-requests/)
-    pub fn dfu(&mut self) -> dfu::DFU<IOM, BUF_SIZE> {
+    pub fn dfu(&mut self) -> dfu::DFU<'_, IOM, BUF_SIZE> {
         dfu::DFU::from(self)
     }
 
     /// [NtN Requests](https://dev.blues.io/reference/notecard-api/ntn-requests/)
-    pub fn ntn(&mut self) -> ntn::NTN<IOM, BUF_SIZE> {
+    pub fn ntn(&mut self) -> ntn::NTN<'_, IOM, BUF_SIZE> {
         ntn::NTN::from(self)
     }
 }
