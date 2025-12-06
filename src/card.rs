@@ -526,7 +526,6 @@ pub mod res {
     pub struct VersionInner {
         pub org: heapless::String<24>,
         pub product: heapless::String<24>,
-        pub target: Option<heapless::String<24>>,
         pub version: heapless::String<24>,
         pub ver_major: u8,
         pub ver_minor: u8,
