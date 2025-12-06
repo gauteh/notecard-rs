@@ -2,17 +2,17 @@
 
 #[allow(unused_imports)]
 use defmt::{debug, error, info, trace, warn};
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, SevenBitAddress, Write};
+use embedded_hal::delay::DelayNs;
+use embedded_hal::i2c::I2c;
 use serde::{Deserialize, Serialize};
 
 use super::{FutureResponse, NoteError, Notecard};
 
-pub struct Hub<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> {
+pub struct Hub<'a, IOM: I2c, const BS: usize> {
     note: &'a mut Notecard<IOM, BS>,
 }
 
-impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> Hub<'a, IOM, BS> {
+impl<'a, IOM: I2c, const BS: usize> Hub<'a, IOM, BS> {
     pub fn from(note: &mut Notecard<IOM, BS>) -> Hub<'_, IOM, BS> {
         Hub { note }
     }
@@ -20,7 +20,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
     /// Add a "device health" log message to send to Notehub on the next sync.
     pub fn log(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         text: &str,
         alert: bool,
         sync: bool,
@@ -41,7 +41,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
     /// retrieves the current Notehub configuration for the Natecard.
     pub fn get(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::Hub, IOM, BS>, NoteError> {
         self.note.request_raw(delay, b"{\"req\":\"hub.get\"}\n")?;
         Ok(FutureResponse::from(self.note))
@@ -51,7 +51,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
     /// the primary method for controlling the Notecard's Notehub connection and sync behavior.
     pub fn set(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         product: Option<&str>,
         host: Option<&str>,
         mode: Option<req::HubMode>,
@@ -88,7 +88,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
     /// remove the notecard from any penalty boxes.
     pub fn sync(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
         allow: bool,
         out: Option<bool>,
         inn: Option<bool>,
@@ -109,7 +109,7 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> H
     /// Check on the status of a recently triggered or previous sync.
     pub fn sync_status(
         self,
-        delay: &mut impl DelayMs<u16>,
+        delay: &mut impl DelayNs,
     ) -> Result<FutureResponse<'a, res::SyncStatus, IOM, BS>, NoteError> {
         self.note
             .request_raw(delay, b"{\"req\":\"hub.sync.status\"}\n")?;
