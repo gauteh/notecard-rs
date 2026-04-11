@@ -461,17 +461,19 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     fn send_request(&mut self, delay: &mut impl DelayMs<u16>) -> Result<(), NoteError> {
         // This is presumably limited by the notecard firmware.
         const CHUNK_LENGTH_MAX: usize = 127;
-        // 127 bytes is the I2C max supported by the Notecard firmware.
-        const CHUNK_LENGTH_I: usize = 127;
+        // This is a limit that was required on some Arduinos. Can probably be increased up to
+        // `CHUNK_LENGTH_MAX`. Should maybe be configurable.
+        const CHUNK_LENGTH_I: usize = 30;
         const CHUNK_LENGTH: usize = if CHUNK_LENGTH_I < CHUNK_LENGTH_MAX {
             CHUNK_LENGTH_I
         } else {
             CHUNK_LENGTH_MAX
         };
 
-        // Use 2×CHUNK_LENGTH (254 bytes) as segment boundary to get 2 chunks
-        // per segment rather than 1, reducing the relative cost of segment_delay.
-        const SEGMENT_LENGTH: usize = 2 * CHUNK_LENGTH;
+        // `note-c` uses `250` for `SEGMENT_LENGTH`. Round to closest divisible
+        // by CHUNK_LENGTH so that we don't end up with unnecessarily fragmented
+        // chunks. https://github.com/blues/note-c/blob/master/n_lib.h#L40 .
+        const SEGMENT_LENGTH: usize = (250 / CHUNK_LENGTH) * CHUNK_LENGTH;
 
         if !matches!(self.state, NoteState::Request) {
             warn!("note: request: wrong-state, resetting before new request.");
@@ -534,13 +536,13 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
         data: &[u8],
     ) -> Result<(), NoteError> {
         const CHUNK_LENGTH_MAX: usize = 127;
-        const CHUNK_LENGTH_I: usize = 127;
+        const CHUNK_LENGTH_I: usize = 30;
         const CHUNK_LENGTH: usize = if CHUNK_LENGTH_I < CHUNK_LENGTH_MAX {
             CHUNK_LENGTH_I
         } else {
             CHUNK_LENGTH_MAX
         };
-        const SEGMENT_LENGTH: usize = 2 * CHUNK_LENGTH;
+        const SEGMENT_LENGTH: usize = (250 / CHUNK_LENGTH) * CHUNK_LENGTH;
 
         if !matches!(self.state, NoteState::Request) {
             return Err(NoteError::WrongState);
