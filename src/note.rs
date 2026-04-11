@@ -261,8 +261,10 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> N
         port: Option<u32>,
         delete: Option<bool>,
     ) -> Result<FutureResponse<'a, res::Template, IOM, BS>, NoteError> {
-        if let Some(port) = port && !(1..=100).contains(&port) {
+        if let Some(port) = port {
+            if !(1..=100).contains(&port) {
                 return Err(NoteError::InvalidRequest);
+            }
         }
 
         let format = match format {
