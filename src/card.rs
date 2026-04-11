@@ -264,11 +264,85 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> C
         )?;
         Ok(FutureResponse::from(self.note))
     }
+
+    /// Checks the Notecard's binary store status.
+    ///
+    /// Pass `reset: true` to reset (clear) the binary store before use. Returns the current
+    /// decoded `length` and maximum `max` capacity in bytes.
+    ///
+    /// See <https://dev.blues.io/reference/notecard-api/card-requests/#card-binary>
+    pub fn binary(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        reset: bool,
+    ) -> Result<FutureResponse<'a, res::Binary, IOM, BS>, NoteError> {
+        self.note.request(
+            delay,
+            req::Binary {
+                req: "card.binary",
+                reset: reset.then_some(true),
+            },
+        )?;
+        Ok(FutureResponse::from(self.note))
+    }
+
+    /// Prepares the Notecard to receive COBS-encoded binary data.
+    ///
+    /// After calling this and consuming the response with `.wait()`, immediately transmit the
+    /// COBS-encoded binary data (including the trailing `'\n'` EOP byte) using
+    /// [`Notecard::transmit_data`].
+    ///
+    /// - `cobs`: encoded data length, **not** including the EOP byte
+    /// - `offset`: byte offset into the Notecard binary store (for multi-chunk transfers)
+    /// - `status`: lowercase hex MD5 of the **unencoded** data
+    ///
+    /// See <https://dev.blues.io/reference/notecard-api/card-requests/#card-binary-put>
+    pub fn binary_put(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        cobs: u32,
+        offset: Option<u32>,
+        status: &str,
+    ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
+        self.note.request(
+            delay,
+            req::BinaryPut {
+                req: "card.binary.put",
+                cobs,
+                offset,
+                status,
+            },
+        )?;
+        Ok(FutureResponse::from(self.note))
+    }
 }
 
 pub mod req {
 
     use super::*;
+
+    #[derive(Serialize, Default)]
+    pub struct Binary {
+        pub req: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub reset: Option<bool>,
+    }
+
+    #[derive(Serialize)]
+    pub struct BinaryPut<'a> {
+        pub req: &'static str,
+
+        /// COBS-encoded data length (excluding the trailing EOP `'\n'`).
+        pub cobs: u32,
+
+        /// Byte offset into the Notecard binary store for multi-chunk transfers.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub offset: Option<u32>,
+
+        /// Lowercase hex MD5 of the **unencoded** binary data.
+        pub status: &'a str,
+    }
 
     #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
     pub struct Aux {
@@ -419,6 +493,16 @@ pub mod res {
 
     #[derive(Deserialize, Debug, defmt::Format)]
     pub struct Empty {}
+
+    /// Response from `card.binary` — reports the binary store status.
+    #[derive(Deserialize, Debug, defmt::Format)]
+    pub struct Binary {
+        /// Current decoded data length in the binary store.
+        pub length: Option<u32>,
+
+        /// Maximum capacity of the binary store.
+        pub max: Option<u32>,
+    }
 
     #[derive(Deserialize, Debug, defmt::Format)]
     pub struct LocationTrack {
