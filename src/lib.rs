@@ -17,6 +17,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 pub mod card;
 pub mod cobs;
 pub mod dfu;
+pub mod env;
 pub mod hub;
 pub mod note;
 pub mod web;
@@ -629,6 +630,11 @@ impl<IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BUF_SIZE: usize>
     /// [dfu Requests](https://dev.blues.io/api-reference/notecard-api/dfu-requests/)
     pub fn dfu(&mut self) -> dfu::DFU<'_, IOM, BUF_SIZE> {
         dfu::DFU::from(self)
+    }
+
+    /// [env Requests](https://dev.blues.io/reference/notecard-api/env-requests/)
+    pub fn env(&mut self) -> env::Env<'_, IOM, BUF_SIZE> {
+        env::Env::from(self)
     }
 
     /// [NtN Requests](https://dev.blues.io/reference/notecard-api/ntn-requests/)
