@@ -1,7 +1,6 @@
 //! Protocol for transmitting: <https://dev.blues.io/notecard/notecard-guides/serial-over-i2c-protocol/>
 //! API: <https://dev.blues.io/reference/notecard-api/introduction/>
 //!
-#![feature(type_changing_struct_update)]
 #![cfg_attr(not(test), no_std)]
 
 use core::convert::Infallible;
@@ -16,7 +15,9 @@ use heapless::{String, Vec};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub mod card;
+pub mod cobs;
 pub mod dfu;
+pub mod env;
 pub mod hub;
 pub mod note;
 pub mod web;
@@ -217,7 +218,12 @@ impl<IOM: I2c, const BUF_SIZE: usize>
         } else {
             Ok(Notecard {
                 buf: Vec::<_, B>::from_slice(&self.buf).unwrap(),
-                ..self
+                i2c: self.i2c,
+                addr: self.addr,
+                state: self.state,
+                response_timeout: self.response_timeout,
+                chunk_delay: self.chunk_delay,
+                segment_delay: self.segment_delay,
             })
         }
     }
@@ -516,6 +522,55 @@ impl<IOM: I2c, const BUF_SIZE: usize>
         Ok(())
     }
 
+    /// Transmit raw bytes to the Notecard without JSON framing and without waiting for a response.
+    ///
+    /// Used for binary data transmission: call this immediately after consuming the response from
+    /// a `card.binary.put` JSON request to deliver the COBS-encoded binary payload.
+    ///
+    /// The `data` slice should include the trailing `'\n'` EOP byte at the end.
+    ///
+    /// State must be [`NoteState::Request`]; state remains `Request` after this call since no
+    /// response is expected for raw binary data.
+    pub(crate) fn transmit_data(
+        &mut self,
+        delay: &mut impl DelayMs<u16>,
+        data: &[u8],
+    ) -> Result<(), NoteError> {
+        const CHUNK_LENGTH_MAX: usize = 127;
+        const CHUNK_LENGTH_I: usize = 30;
+        const CHUNK_LENGTH: usize = if CHUNK_LENGTH_I < CHUNK_LENGTH_MAX {
+            CHUNK_LENGTH_I
+        } else {
+            CHUNK_LENGTH_MAX
+        };
+        const SEGMENT_LENGTH: usize = (250 / CHUNK_LENGTH) * CHUNK_LENGTH;
+
+        if !matches!(self.state, NoteState::Request) {
+            return Err(NoteError::WrongState);
+        }
+
+        trace!("note: transmitting {} bytes of raw binary data", data.len());
+
+        let mut buf = Vec::<u8, { CHUNK_LENGTH + 1 }>::new();
+        for segment in data.chunks(SEGMENT_LENGTH) {
+            for c in segment.chunks(buf.capacity() - 1) {
+                buf.push(c.len() as u8).unwrap();
+                buf.extend_from_slice(c).unwrap();
+
+                self.i2c
+                    .write(self.addr, &buf)
+                    .map_err(|_| NoteError::I2cWriteError)?;
+
+                buf.clear();
+                delay.delay_ms(self.chunk_delay);
+            }
+            delay.delay_ms(self.segment_delay);
+        }
+
+        // State remains Request — no response is expected for raw binary data.
+        Ok(())
+    }
+
     /// Make a raw request. The byte slice must end with `\n`. After making a request a
     /// [FutureResponse] must be created and consumed.
     pub(crate) fn request_raw(
@@ -575,6 +630,11 @@ impl<IOM: I2c, const BUF_SIZE: usize>
     /// [dfu Requests](https://dev.blues.io/api-reference/notecard-api/dfu-requests/)
     pub fn dfu(&mut self) -> dfu::DFU<'_, IOM, BUF_SIZE> {
         dfu::DFU::from(self)
+    }
+
+    /// [env Requests](https://dev.blues.io/reference/notecard-api/env-requests/)
+    pub fn env(&mut self) -> env::Env<'_, IOM, BUF_SIZE> {
+        env::Env::from(self)
     }
 
     /// [NtN Requests](https://dev.blues.io/reference/notecard-api/ntn-requests/)

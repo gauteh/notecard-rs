@@ -11,6 +11,7 @@ repository = "https://github.com/gauteh/notecard-rs"
 defmt = "1.0"
 embedded-hal = "1.0"
 heapless = { version = "0.7", features = [ "serde", "ufmt-impl", "defmt-impl" ] }
+md-5 = { version = "0.10", default-features = false }
 serde = { version = "1", features = ["derive"], default-features = false }
 serde-json-core = "0.5.1"
 

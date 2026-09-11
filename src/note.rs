@@ -55,6 +55,121 @@ impl<'a, IOM: I2c, const BS: usize> Note<'a, IOM, BS> {
         Ok(FutureResponse::from(self.note))
     }
 
+    /// Adds a note with a raw binary payload to a notefile using the Notecard's binary store.
+    ///
+    /// This method implements the full `card.binary` → `card.binary.put` → raw I2C transmit →
+    /// verify → `note.add` protocol as documented in the Blues Notecard binary data guide.
+    ///
+    /// The `payload` bytes are COBS-encoded (with EOP = `'\n'`) and transmitted directly over
+    /// I2C, bypassing the normal JSON request path. The Notecard then commits the binary from its
+    /// internal buffer when the final `note.add` with `"binary": true` is sent.
+    ///
+    /// # Parameters
+    ///
+    /// - `payload`: raw binary data to transmit
+    /// - `enc_buf`: caller-supplied working buffer for COBS encoding; must be at least
+    ///   [`crate::cobs::max_encoded_len`]`(payload.len())` bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NoteError::BufOverflow`] if `enc_buf` is too small or if `payload` exceeds
+    /// the Notecard's binary store capacity.
+    /// Returns [`NoteError::NotecardErr`] (containing `{bad-bin}`) if the Notecard reports a
+    /// checksum mismatch after transmission — the caller should retry.
+    ///
+    /// # References
+    ///
+    /// - <https://dev.blues.io/reference/notecard-api/card-requests/#card-binary>
+    /// - <https://dev.blues.io/reference/notecard-api/card-requests/#card-binary-put>
+    /// - <https://github.com/blues/note-c/blob/master/n_helpers.c> (`NoteBinaryStoreTransmit`)
+    pub fn add_binary<T: Serialize + Default>(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        file: Option<&str>,
+        note_id: Option<&str>,
+        body: Option<T>,
+        payload: &[u8],
+        enc_buf: &mut [u8],
+        sync: bool,
+    ) -> Result<FutureResponse<'a, res::Add, IOM, BS>, NoteError> {
+        use crate::cobs;
+        use md5::{Digest, Md5};
+
+        let nc = self.note;
+
+        // Step 1: Initialize the binary store and check capacity.
+        nc.request(
+            delay,
+            inner::CardBinary {
+                req: "card.binary",
+                reset: Some(true),
+            },
+        )?;
+        let bin_info =
+            FutureResponse::<inner::CardBinaryInfo, IOM, BS>::from(nc).wait(delay)?;
+
+        if let Some(max) = bin_info.max {
+            if payload.len() > max as usize {
+                return Err(NoteError::BufOverflow);
+            }
+        }
+
+        // Step 2: COBS-encode the payload into enc_buf.
+        let enc_min = cobs::max_encoded_len(payload.len());
+        if enc_buf.len() < enc_min {
+            return Err(NoteError::BufOverflow);
+        }
+        let enc_len = cobs::encode(payload, enc_buf);
+        enc_buf[enc_len] = cobs::EOP;
+
+        // Step 3: Compute the MD5 hash of the unencoded payload as a lowercase hex string.
+        let hash = Md5::digest(payload);
+        let mut md5_str = heapless::String::<32>::new();
+        core::fmt::write(&mut md5_str, format_args!("{:x}", hash)).unwrap();
+
+        // Step 4: Issue card.binary.put — prepare the Notecard to receive binary data.
+        nc.request(
+            delay,
+            inner::CardBinaryPut {
+                req: "card.binary.put",
+                cobs: enc_len as u32,
+                offset: None,
+                status: &md5_str,
+            },
+        )?;
+        FutureResponse::<res::Empty, IOM, BS>::from(nc).wait(delay)?;
+
+        // Step 5: Transmit the COBS-encoded binary data (including the EOP `'\n'`) over I2C.
+        nc.transmit_data(delay, &enc_buf[..enc_len + 1])?;
+
+        // Step 6: Verify the binary was received and checksum is valid.
+        // The Notecard returns {"err":"...{bad-bin}..."} on checksum mismatch, which
+        // FutureResponse::wait() propagates as NoteError::NotecardErr.
+        nc.request(
+            delay,
+            inner::CardBinary {
+                req: "card.binary",
+                reset: None,
+            },
+        )?;
+        FutureResponse::<inner::CardBinaryInfo, IOM, BS>::from(nc).wait(delay)?;
+
+        // Step 7: Commit the binary data to the notefile with note.add { "binary": true }.
+        nc.request(
+            delay,
+            req::Add::<T> {
+                req: "note.add",
+                file: str_string(file)?,
+                note: str_string(note_id)?,
+                body,
+                binary: Some(true),
+                sync: Some(sync),
+                ..<req::Add<T> as Default>::default()
+            },
+        )?;
+        Ok(FutureResponse::from(nc))
+    }
+
     /// Updates a Note in a DB Notefile by its ID, replacing the existing body and/or payload.
     pub fn update<T: Serialize + Default>(
         self,
@@ -146,8 +261,10 @@ impl<'a, IOM: I2c, const BS: usize> Note<'a, IOM, BS> {
         port: Option<u32>,
         delete: Option<bool>,
     ) -> Result<FutureResponse<'a, res::Template, IOM, BS>, NoteError> {
-        if let Some(port) = port && !(1..=100).contains(&port) {
+        if let Some(port) = port {
+            if !(1..=100).contains(&port) {
                 return Err(NoteError::InvalidRequest);
+            }
         }
 
         let format = match format {
@@ -192,6 +309,9 @@ mod req {
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub sync: Option<bool>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub binary: Option<bool>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub key: Option<heapless::String<20>>,
@@ -295,6 +415,39 @@ pub mod res {
     }
 }
 
+/// Private request/response types used by [`Note::add_binary`].
+mod inner {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Default)]
+    pub struct CardBinary {
+        pub req: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub reset: Option<bool>,
+    }
+
+    #[derive(Deserialize, Debug, defmt::Format, Default)]
+    pub struct CardBinaryInfo {
+        pub length: Option<u32>,
+        pub max: Option<u32>,
+    }
+
+    #[derive(Serialize)]
+    pub struct CardBinaryPut<'a> {
+        pub req: &'static str,
+
+        /// COBS-encoded data length (excluding the trailing EOP `'\n'`).
+        pub cobs: u32,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub offset: Option<u32>,
+
+        /// Lowercase hex MD5 of the **unencoded** binary data.
+        pub status: &'a str,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -369,5 +522,18 @@ mod tests {
         let cmd = serde_json_core::to_vec::<_, { BUF_SIZE }>(&add).unwrap();
 
         println!("cmd size: {}", cmd.len());
+    }
+
+    #[test]
+    fn md5_hex_string() {
+        use core::fmt::Write;
+        use md5::{Digest, Md5};
+
+        // Known MD5: "hello world" → 5eb63bbbe01eeed093cb22bb8f5acdc3
+        let hash = Md5::digest(b"hello world");
+        let mut s = heapless::String::<32>::new();
+        write!(s, "{:x}", hash).unwrap();
+        assert_eq!(s.as_str(), "5eb63bbbe01eeed093cb22bb8f5acdc3");
+        assert_eq!(s.len(), 32);
     }
 }
