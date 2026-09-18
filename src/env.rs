@@ -54,6 +54,29 @@ impl<'a, IOM: Write<SevenBitAddress> + Read<SevenBitAddress>, const BS: usize> E
             .request_raw(delay, b"{\"req\":\"env.modified\"}\n")?;
         Ok(FutureResponse::from(self.note))
     }
+
+    /// The [env.set](https://dev.blues.io/reference/notecard-api/env-requests/#env-set) request
+    /// sets a local environment variable on the Notecard itself. Passing `None` for `text`
+    /// deletes the variable. Note that a variable pushed down from Notehub can still overwrite a
+    /// value set this way the next time the Notecard syncs its environment -- this is intended
+    /// for the device to set its own local defaults/acknowledgements (e.g. clearing a one-shot
+    /// command variable after acting on it), not to permanently override Notehub-managed config.
+    pub fn set(
+        self,
+        delay: &mut impl DelayMs<u16>,
+        name: &str,
+        text: Option<&str>,
+    ) -> Result<FutureResponse<'a, res::Empty, IOM, BS>, NoteError> {
+        self.note.request(
+            delay,
+            req::EnvSet {
+                req: "env.set",
+                name: Some(name),
+                text,
+            },
+        )?;
+        Ok(FutureResponse::from(self.note))
+    }
 }
 
 pub mod req {
@@ -65,6 +88,17 @@ pub mod req {
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub name: Option<&'a str>,
+    }
+
+    #[derive(Deserialize, Serialize, Debug, defmt::Format, Default)]
+    pub struct EnvSet<'a> {
+        pub req: &'static str,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub name: Option<&'a str>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub text: Option<&'a str>,
     }
 }
 
@@ -88,4 +122,7 @@ pub mod res {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub time: Option<u32>,
     }
+
+    #[derive(Deserialize, Debug, defmt::Format, Default)]
+    pub struct Empty {}
 }
